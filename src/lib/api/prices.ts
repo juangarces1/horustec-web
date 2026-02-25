@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { ProductPriceDto, PriceHistoryDto, UpdatePriceRequest } from '@/types/api';
+import type { ProductPriceDto, PriceHistoryDto, UpdatePriceRequest, MachinePriceDto } from '@/types/api';
 
 export const pricesApi = {
   getCurrent: async (): Promise<ProductPriceDto[]> => {
@@ -15,6 +15,11 @@ export const pricesApi = {
 
   updatePrice: async (productId: string, data: UpdatePriceRequest): Promise<ProductPriceDto> => {
     const response = await apiClient.put<ProductPriceDto>(`/api/prices/${productId}`, data);
+    return response.data;
+  },
+
+  getMachinePrices: async (): Promise<MachinePriceDto[]> => {
+    const response = await apiClient.get<MachinePriceDto[]>('/api/prices/machine');
     return response.data;
   },
 };

@@ -19,7 +19,8 @@ export interface NozzleStatusDto {
 
 export interface VisualizationDto {
   nozzleCode: string;
-  currentLiters: number;
+  currentCash: number;
+  tagId: string | null;
   productName: string | null;
   status: NozzleStatus;
 }
@@ -83,6 +84,7 @@ export interface AttendantDto {
   phone: string | null;
   email: string | null;
   notes: string | null;
+  photoUrl: string | null;
   userId: string | null;
   createdAt: string;
   updatedAt: string | null;
@@ -190,4 +192,36 @@ export interface UpdateUserRequest {
   role: 'Admin' | 'Operator' | 'ReadOnly';
   isActive: boolean;
   password?: string; // Opcional, solo si se quiere cambiar
+}
+
+// Scheduled Price Change Types
+export interface ScheduledPriceChangeDto {
+  id: string;
+  productId: string;
+  productName: string;
+  productCode: string;
+  originalPrice: number;
+  newPrice: number;
+  scheduledAt: string;
+  createdBy: string;
+  reason: string | null;
+  isExecuted: boolean;
+  executedAt: string | null;
+  isCancelled: boolean;
+}
+
+export interface CreateScheduledPriceRequest {
+  productId: string;
+  newPrice: number;
+  scheduledAt: string; // ISO 8601
+  createdBy: string;
+  reason?: string;
+}
+
+// Machine Price Types (read directly from physical pumps)
+export interface MachinePriceDto {
+  nozzleCode: string;
+  priceLevel0: number;
+  priceLevel1: number;
+  priceLevel2: number;
 }
