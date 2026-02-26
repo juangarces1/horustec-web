@@ -31,4 +31,17 @@ export const attendantsApi = {
   delete: async (id: string): Promise<void> => {
     await apiClient.delete(`/api/attendants/${id}`);
   },
+
+  uploadPhoto: async (id: string, file: File): Promise<AttendantDto> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post<AttendantDto>(`/api/attendants/${id}/photo`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  deletePhoto: async (id: string): Promise<void> => {
+    await apiClient.delete(`/api/attendants/${id}/photo`);
+  },
 };

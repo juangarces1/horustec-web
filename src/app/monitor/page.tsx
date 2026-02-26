@@ -24,7 +24,7 @@ function MonitorContent() {
     queryFn: async () => {
       const data = await monitoringApi.getVisualization();
       const map = new Map<string, number>();
-      data.forEach((v) => map.set(v.nozzleCode, v.currentLiters));
+      data.forEach((v) => map.set(v.nozzleCode, v.currentCash * 100));
       setVisualizations(map);
       return data;
     },
@@ -40,14 +40,13 @@ function MonitorContent() {
       // React Query will auto-refetch due to refetchInterval
     });
 
-    monitoringHub.onVisualizationUpdated((nozzleNumber, currentValue) => {
-      console.log('Visualization updated:', { nozzleNumber, currentValue });
-      setVisualizations((prev) => new Map(prev).set(nozzleNumber.toString().padStart(2, '0'), currentValue));
+    monitoringHub.onVisualizationUpdated(({ nozzleCode, currentCash }) => {
+      setVisualizations((prev) => new Map(prev).set(nozzleCode, currentCash * 100));
     });
 
     return () => {
       monitoringHub.off('StatusChanged');
-      monitoringHub.off('VisualizationUpdated');
+      monitoringHub.off('ReceiveVisualization');
       monitoringHub.disconnect();
     };
   }, []);

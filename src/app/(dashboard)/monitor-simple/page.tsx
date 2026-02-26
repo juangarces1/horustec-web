@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { monitoringApi } from '@/lib/api/monitoring';
+import { attendantsApi } from '@/lib/api/attendants';
+import { pricesApi } from '@/lib/api/prices';
 import { NozzleCard } from '@/components/monitor/nozzle-card';
 import { ActiveFuelings } from '@/components/monitor/active-fuelings';
 import { Button } from '@/components/ui/button';
@@ -12,6 +14,30 @@ import type { VisualizationDto } from '@/types/api';
 function MonitorSimpleContent() {
   const [visualizations, setVisualizations] = useState<Map<string, number>>(new Map());
   const [activeFuelings, setActiveFuelings] = useState<VisualizationDto[]>([]);
+
+  const { data: attendants } = useQuery({
+    queryKey: ['attendants-active'],
+    queryFn: () => attendantsApi.getAll(true),
+    staleTime: 60_000,
+  });
+
+  const { data: prices } = useQuery({
+    queryKey: ['prices-current'],
+    queryFn: pricesApi.getCurrent,
+    staleTime: 60_000,
+  });
+
+  const attendantsByTag = useMemo(() => {
+    const map = new Map<string, string>();
+    attendants?.forEach((a) => { if (a.tagId) map.set(a.tagId.toUpperCase(), a.fullName); });
+    return map;
+  }, [attendants]);
+
+  const pricesByProduct = useMemo(() => {
+    const map = new Map<string, number>();
+    prices?.forEach((p) => map.set(p.productName.toLowerCase(), p.currentPrice));
+    return map;
+  }, [prices]);
 
   // Fetch nozzle statuses every 2 seconds
   const { data: statuses, isLoading, error, refetch } = useQuery({
@@ -26,8 +52,7 @@ function MonitorSimpleContent() {
     queryFn: async () => {
       const data = await monitoringApi.getVisualization();
       const map = new Map<string, number>();
-      // Multiply by 100 because visualization returns money value
-      data.forEach((v) => map.set(v.nozzleCode, v.currentLiters * 100));
+      data.forEach((v) => map.set(v.nozzleCode, v.currentCash * 100));
       setVisualizations(map);
       setActiveFuelings(data);
       return data;
@@ -86,7 +111,11 @@ function MonitorSimpleContent() {
 
         {/* Active Fuelings Section */}
         <div className="mt-8">
-          <ActiveFuelings visualizations={activeFuelings} />
+          <ActiveFuelings
+              visualizations={activeFuelings}
+              attendantsByTag={attendantsByTag}
+              pricesByProduct={pricesByProduct}
+            />
         </div>
 
         <div className="mt-8 rounded-lg bg-white p-4 shadow">

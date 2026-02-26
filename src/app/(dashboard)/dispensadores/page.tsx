@@ -1,13 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { monitoringApi } from '@/lib/api/monitoring';
+import { attendantsApi } from '@/lib/api/attendants';
+import { pricesApi } from '@/lib/api/prices';
 import { monitoringHub } from '@/lib/signalr/monitoring-hub';
 import { DispenserCard } from '@/components/monitor/dispenser-card';
 import { Button } from '@/components/ui/button';
 import { Activity } from 'lucide-react';
-import type { NozzleStatusDto, VisualizationDto, NozzleStatus } from '@/types/api';
+import type { NozzleStatusDto, NozzleStatus } from '@/types/api';
 
 interface DispenserGroup {
   dispenserNumber: number;
@@ -54,27 +56,65 @@ const NOZZLE_PRODUCTS: Record<string, string> = {
 
 function DispensadoresContent() {
   const [visualizations, setVisualizations] = useState<Map<string, number>>(new Map());
+  // nozzleCode → { cash, tagId } for enrichment (attendant + liters)
+  const [nozzleRawData, setNozzleRawData] = useState<Map<string, { cash: number; tagId: string | null }>>(new Map());
+
 
   // Fetch nozzle statuses
   const { data: statuses, isLoading, error, refetch } = useQuery({
     queryKey: ['nozzle-statuses'],
     queryFn: monitoringApi.getStatuses,
-    refetchInterval: 3000, // Poll every 3 seconds as fallback
+    refetchInterval: 3000,
   });
 
-  // Fetch visualizations
+  // Fetch visualizations — sets nozzleRawData which drives the attendant resolution below.
   useQuery({
     queryKey: ['visualizations'],
     queryFn: async () => {
       const data = await monitoringApi.getVisualization();
-      const map = new Map<string, number>();
-      // Multiply by 100 because visualization returns money value
-      data.forEach((v) => map.set(v.nozzleCode, v.currentLiters * 100));
-      setVisualizations(map);
+      const displayMap = new Map<string, number>();
+      data.forEach((v) => displayMap.set(v.nozzleCode, v.currentCash * 100));
+      setVisualizations(displayMap);
+      setNozzleRawData((prev) => {
+        const next = new Map<string, { cash: number; tagId: string | null }>();
+        data.forEach((v) => {
+          // Preserve tagId from SignalR if the REST endpoint returns null
+          const existing = prev.get(v.nozzleCode);
+          next.set(v.nozzleCode, { cash: v.currentCash, tagId: v.tagId ?? existing?.tagId ?? null });
+        });
+        return next;
+      });
       return data;
     },
-    refetchInterval: 1000, // Poll every 1 second
+    refetchInterval: 1000,
   });
+
+  const { data: attendants } = useQuery({
+    queryKey: ['attendants-active'],
+    queryFn: () => attendantsApi.getAll(true),
+    staleTime: 30_000,
+  });
+
+  const attendantsByTag = useMemo(() => {
+    const map = new Map<string, { name: string; photoUrl: string | null }>();
+    attendants?.forEach((a) => {
+      if (a.tagId) map.set(a.tagId.trim().toUpperCase(), { name: a.fullName, photoUrl: a.photoUrl });
+    });
+    return map;
+  }, [attendants]);
+
+  const { data: prices } = useQuery({
+    queryKey: ['prices-current'],
+    queryFn: pricesApi.getCurrent,
+    staleTime: 60_000,
+  });
+
+  const pricesByProduct = useMemo(() => {
+    const map = new Map<string, number>();
+    prices?.forEach((p) => map.set(p.productName.toLowerCase(), p.currentPrice));
+    return map;
+  }, [prices]);
+
 
   // SignalR real-time updates
   useEffect(() => {
@@ -85,16 +125,19 @@ function DispensadoresContent() {
       refetch();
     });
 
-    monitoringHub.onVisualizationUpdated((nozzleNumber, currentValue) => {
-      console.log('Visualization updated:', { nozzleNumber, currentValue });
-      const nozzleCode = nozzleNumber.toString().padStart(2, '0');
-      // Multiply by 100 because visualization returns money value
-      setVisualizations((prev) => new Map(prev).set(nozzleCode, currentValue * 100));
+    monitoringHub.onVisualizationUpdated(({ nozzleCode, currentCash, tagId }) => {
+      setVisualizations((prev) => new Map(prev).set(nozzleCode, currentCash * 100));
+      setNozzleRawData((prev) => {
+        const next = new Map(prev);
+        const existing = prev.get(nozzleCode);
+        next.set(nozzleCode, { cash: currentCash, tagId: tagId ?? existing?.tagId ?? null });
+        return next;
+      });
     });
 
     return () => {
       monitoringHub.off('StatusChanged');
-      monitoringHub.off('VisualizationUpdated');
+      monitoringHub.off('ReceiveVisualization');
     };
   }, [refetch]);
 
@@ -113,22 +156,22 @@ function DispensadoresContent() {
       // Priority: Fueling > Ready > Waiting > Busy > Blocked > Available > Error > Failure > NotConfigured
       let dispenserStatus = dispenserNozzles[0].status;
       let activeNozzleIndex = 0;
-      const statusPriority = [3, 4, 5, 7, 2, 1, 8, 6, 0]; // Fueling, Ready, Waiting, Busy, Blocked, Available, Error, Failure, NotConfigured
+      const statusPriority = [3, 4, 5, 7, 2, 1, 8, 6, 0];
 
-      for (let i = 0; i < dispenserNozzles.length; i++) {
-        const nozzle = dispenserNozzles[i];
+      for (let j = 0; j < dispenserNozzles.length; j++) {
+        const nozzle = dispenserNozzles[j];
         const currentPriority = statusPriority.indexOf(nozzle.status);
         const dispenserPriority = statusPriority.indexOf(dispenserStatus);
         if (currentPriority < dispenserPriority) {
           dispenserStatus = nozzle.status;
-          activeNozzleIndex = i;
+          activeNozzleIndex = j;
         }
       }
 
       // Check if all nozzles have the same status
       const allSameStatus = dispenserNozzles.every(n => n.status === dispenserStatus);
 
-      // Get total liters from visualizations for this dispenser
+      // Get total cash from visualizations for this dispenser
       let totalLiters = 0;
       let hasLiters = false;
       for (const nozzle of dispenserNozzles) {
@@ -204,15 +247,55 @@ function DispensadoresContent() {
 
       {/* Dispensers Grid */}
       <div className="grid grid-cols-2 gap-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-        {dispensers.map((dispenser) => (
-          <DispenserCard
-            key={dispenser.dispenserNumber}
-            dispenserNumber={dispenser.dispenserNumber}
-            status={dispenser.status}
-            currentLiters={dispenser.currentLiters}
-            activeNozzle={dispenser.activeNozzle}
-          />
-        ))}
+        {dispensers.map((dispenser) => {
+          // Find the first nozzle in this dispenser that has an active tagId in nozzleRawData.
+          // We scan all nozzleCodes rather than relying solely on activeNozzle.code because
+          // activeNozzle can be null when allSameStatus=true (e.g. all nozzles are Fueling).
+          let activeTagId: string | null = null;
+          let activeRaw: { cash: number; tagId: string | null } | undefined;
+
+          // Prefer the designated activeNozzle first (it has priority-based selection).
+          if (dispenser.activeNozzle?.code) {
+            activeRaw = nozzleRawData.get(dispenser.activeNozzle.code);
+            activeTagId = activeRaw?.tagId ?? null;
+          }
+
+          // Fall back: scan all nozzles in this dispenser for a tagId.
+          if (!activeTagId) {
+            for (const code of dispenser.nozzleCodes) {
+              const candidate = nozzleRawData.get(code);
+              if (candidate?.tagId) {
+                activeRaw = candidate;
+                activeTagId = candidate.tagId;
+                break;
+              }
+            }
+          }
+
+          const tagIdNorm = activeTagId?.trim().toUpperCase() ?? null;
+          const attendantInfo = tagIdNorm ? (attendantsByTag.get(tagIdNorm) ?? null) : null;
+          const attendantName = attendantInfo?.name ?? null;
+          const attendantPhotoUrl = attendantInfo?.photoUrl ?? null;
+
+          const productKey = dispenser.activeNozzle?.product?.toLowerCase();
+          const price = productKey ? pricesByProduct.get(productKey) : null;
+          const calculatedLiters = activeRaw && price && price > 0
+            ? (activeRaw.cash * 100) / price
+            : null;
+
+          return (
+            <DispenserCard
+              key={dispenser.dispenserNumber}
+              dispenserNumber={dispenser.dispenserNumber}
+              status={dispenser.status}
+              currentLiters={dispenser.currentLiters}
+              activeNozzle={dispenser.activeNozzle}
+              attendantName={attendantName}
+              attendantPhotoUrl={attendantPhotoUrl}
+              calculatedLiters={calculatedLiters}
+            />
+          );
+        })}
       </div>
 
       {/* Legend */}

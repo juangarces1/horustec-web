@@ -164,34 +164,42 @@ export interface UpdateProductRequest extends CreateProductRequest {
 }
 
 // User Types (Sistema)
+export type UserRole = 'Admin' | 'Operator' | 'ReadOnly';
+
+// Mapeo de roles: el backend usa números, el frontend strings
+export const UserRoleToNumber: Record<UserRole, number> = {
+  Admin: 0,
+  Operator: 1,
+  ReadOnly: 2,
+};
+
+export const NumberToUserRole: Record<number, UserRole> = {
+  0: 'Admin',
+  1: 'Operator',
+  2: 'ReadOnly',
+};
+
 export interface UserDto {
   id: string;
   username: string;
-  email: string;
   fullName: string;
-  role: 'Admin' | 'Operator' | 'ReadOnly';
+  role: UserRole;
   isActive: boolean;
-  createdAt: string;
-  updatedAt: string | null;
-  lastLogin: string | null;
 }
 
 export interface CreateUserRequest {
   username: string;
-  email: string;
-  fullName: string;
   password: string;
-  role: 'Admin' | 'Operator' | 'ReadOnly';
-  isActive: boolean;
+  fullName: string;
+  role: number; // 0=Admin, 1=Operator, 2=ReadOnly
 }
 
 export interface UpdateUserRequest {
   id: string;
-  email: string;
   fullName: string;
-  role: 'Admin' | 'Operator' | 'ReadOnly';
+  role: number; // 0=Admin, 1=Operator, 2=ReadOnly
   isActive: boolean;
-  password?: string; // Opcional, solo si se quiere cambiar
+  newPassword?: string | null;
 }
 
 // Scheduled Price Change Types
@@ -224,4 +232,89 @@ export interface MachinePriceDto {
   priceLevel0: number;
   priceLevel1: number;
   priceLevel2: number;
+}
+
+// Identifier Types (RFID Tags - IDENTFID DT214)
+export enum IdentifierUserLevel {
+  Vehicle = 0x1,
+  WashingMachine = 0x2,
+  Reserved = 0x3,
+  Client1 = 0x4,
+  Client2 = 0x5,
+  Client3 = 0x6,
+  Employee1 = 0x7,
+  Employee2 = 0x8,
+  Employee3 = 0x9,
+  Employee4 = 0xA,
+  Employee5 = 0xB,
+  Employee6 = 0xC,
+  Manager1 = 0xD,
+  Manager2 = 0xE,
+  FullControl = 0xF,
+}
+
+export const IdentifierUserLevelLabels: Record<IdentifierUserLevel, string> = {
+  [IdentifierUserLevel.Vehicle]: 'Vehiculo',
+  [IdentifierUserLevel.WashingMachine]: 'Lavadora',
+  [IdentifierUserLevel.Reserved]: 'Reservado',
+  [IdentifierUserLevel.Client1]: 'Cliente 1',
+  [IdentifierUserLevel.Client2]: 'Cliente 2',
+  [IdentifierUserLevel.Client3]: 'Cliente 3',
+  [IdentifierUserLevel.Employee1]: 'Empleado 1',
+  [IdentifierUserLevel.Employee2]: 'Empleado 2',
+  [IdentifierUserLevel.Employee3]: 'Empleado 3',
+  [IdentifierUserLevel.Employee4]: 'Empleado 4',
+  [IdentifierUserLevel.Employee5]: 'Empleado 5',
+  [IdentifierUserLevel.Employee6]: 'Empleado 6',
+  [IdentifierUserLevel.Manager1]: 'Gerente 1',
+  [IdentifierUserLevel.Manager2]: 'Gerente 2',
+  [IdentifierUserLevel.FullControl]: 'Control Total',
+};
+
+export enum IdentifierPermissionLevel {
+  Reserved = 0x1,
+  ReleasePump = 0x2,
+  RespectShift = 0x4,
+  ReleasePumpAndShift = 0x6,
+  ReleaseWashing = 0x8,
+  ReleasePumpAndWashing = 0xA,
+}
+
+export const IdentifierPermissionLabels: Record<IdentifierPermissionLevel, string> = {
+  [IdentifierPermissionLevel.Reserved]: 'Reservado',
+  [IdentifierPermissionLevel.ReleasePump]: 'Liberar Bomba',
+  [IdentifierPermissionLevel.RespectShift]: 'Respetar Turno',
+  [IdentifierPermissionLevel.ReleasePumpAndShift]: 'Bomba + Turno',
+  [IdentifierPermissionLevel.ReleaseWashing]: 'Liberar Lavadora',
+  [IdentifierPermissionLevel.ReleasePumpAndWashing]: 'Bomba + Lavadora',
+};
+
+export interface IdentifierDto {
+  tag: string;
+  hasData: boolean;
+}
+
+export interface SaveTagRequest {
+  tag: string;
+  userLevel: number;
+  permission: number;
+  t1In?: string;
+  t1Out?: string;
+  t2In?: string;
+  t2Out?: string;
+}
+
+export interface DeleteTagRequest {
+  position: string;
+  tag: string;
+}
+
+export interface IdentifierRecordDto {
+  position: number;
+  tag: string;
+  nozzleCodes: string;
+  day: number;
+  month: number;
+  hour: number;
+  minute: number;
 }

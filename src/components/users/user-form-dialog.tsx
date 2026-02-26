@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { usersApi } from '@/lib/api/users';
-import { UserDto, CreateUserRequest, UpdateUserRequest } from '@/types/api';
+import { UserDto, UserRole, UserRoleToNumber } from '@/types/api';
 import {
   Dialog,
   DialogContent,
@@ -28,17 +28,16 @@ import { Eye, EyeOff } from 'lucide-react';
 interface UserFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  user?: UserDto; // undefined para crear, UserDto para editar
+  user?: UserDto;
   onSuccess?: () => void;
 }
 
 interface FormData {
   username: string;
-  email: string;
   fullName: string;
   password: string;
   confirmPassword: string;
-  role: 'Admin' | 'Operator' | 'ReadOnly';
+  role: UserRole;
   isActive: boolean;
 }
 
@@ -48,7 +47,6 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
 
   const [formData, setFormData] = useState<FormData>({
     username: user?.username || '',
-    email: user?.email || '',
     fullName: user?.fullName || '',
     password: '',
     confirmPassword: '',
@@ -60,12 +58,10 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
 
-  // Reset form when user changes or dialog closes
   useEffect(() => {
     if (open) {
       setFormData({
         username: user?.username || '',
-        email: user?.email || '',
         fullName: user?.fullName || '',
         password: '',
         confirmPassword: '',
@@ -79,28 +75,20 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
       if (isEditing) {
-        const updateData: UpdateUserRequest = {
+        return usersApi.update({
           id: user.id,
-          email: data.email,
           fullName: data.fullName,
-          role: data.role,
+          role: UserRoleToNumber[data.role],
           isActive: data.isActive,
-        };
-        // Solo incluir password si se proporcionó uno nuevo
-        if (data.password) {
-          updateData.password = data.password;
-        }
-        return usersApi.update(updateData);
+          newPassword: data.password || null,
+        });
       } else {
-        const createData: CreateUserRequest = {
+        return usersApi.create({
           username: data.username,
-          email: data.email,
-          fullName: data.fullName,
           password: data.password,
-          role: data.role,
-          isActive: data.isActive,
-        };
-        return usersApi.create(createData);
+          fullName: data.fullName,
+          role: UserRoleToNumber[data.role],
+        });
       }
     },
     onSuccess: () => {
@@ -110,14 +98,31 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
       onSuccess?.();
     },
     onError: (error: any) => {
-      const errorMessage = error?.response?.data?.message || error?.response?.data || 'Error al guardar usuario';
+      const data = error?.response?.data;
+      console.error('Error creating/updating user:', error?.response?.status, data);
 
-      // Handle specific validation errors
+      let errorMessage = 'Error al guardar usuario';
+      if (typeof data === 'string') {
+        errorMessage = data;
+      } else if (data?.detail) {
+        errorMessage = data.detail;
+      } else if (data?.message) {
+        errorMessage = data.message;
+      } else if (data?.title) {
+        errorMessage = data.title;
+      } else if (data?.errors) {
+        const messages = Object.values(data.errors).flat() as string[];
+        if (messages.length > 0) {
+          errorMessage = messages.join('. ');
+        }
+      }
+
       if (typeof errorMessage === 'string') {
-        if (errorMessage.toLowerCase().includes('username')) {
-          setErrors({ username: 'Este nombre de usuario ya existe' });
-        } else if (errorMessage.toLowerCase().includes('email')) {
-          setErrors({ email: 'Este email ya está registrado' });
+        const msg = errorMessage.toLowerCase();
+        if (msg.includes('username') || msg.includes('usuario')) {
+          setErrors({ username: errorMessage });
+        } else if (msg.includes('password') || msg.includes('contraseña')) {
+          setErrors({ password: errorMessage });
         } else {
           toast.error(errorMessage);
         }
@@ -130,42 +135,29 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
   const validateForm = (): boolean => {
     const newErrors: Partial<Record<keyof FormData, string>> = {};
 
-    // Username validation (only for creation)
     if (!isEditing) {
       if (!formData.username.trim()) {
         newErrors.username = 'El nombre de usuario es requerido';
-      } else if (formData.username.length < 3) {
-        newErrors.username = 'El nombre de usuario debe tener al menos 3 caracteres';
+      } else if (formData.username.length > 50) {
+        newErrors.username = 'El nombre de usuario no puede tener más de 50 caracteres';
       } else if (formData.username.includes(' ')) {
         newErrors.username = 'El nombre de usuario no puede contener espacios';
       }
     }
 
-    // Email validation
-    if (!formData.email.trim()) {
-      newErrors.email = 'El email es requerido';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = 'El formato del email no es válido';
-    }
-
-    // Full name validation
     if (!formData.fullName.trim()) {
       newErrors.fullName = 'El nombre completo es requerido';
+    } else if (formData.fullName.length > 150) {
+      newErrors.fullName = 'El nombre completo no puede tener más de 150 caracteres';
     }
 
-    // Password validation (required for creation, optional for editing)
     if (!isEditing || formData.password) {
-      if (!formData.password) {
+      if (!formData.password && !isEditing) {
         newErrors.password = 'La contraseña es requerida';
-      } else if (formData.password.length < 8) {
-        newErrors.password = 'La contraseña debe tener al menos 8 caracteres';
-      } else if (!/[A-Z]/.test(formData.password)) {
-        newErrors.password = 'La contraseña debe contener al menos una mayúscula';
-      } else if (!/[0-9]/.test(formData.password)) {
-        newErrors.password = 'La contraseña debe contener al menos un número';
+      } else if (formData.password && formData.password.length < 6) {
+        newErrors.password = 'La contraseña debe tener al menos 6 caracteres';
       }
 
-      // Confirm password validation
       if (formData.password !== formData.confirmPassword) {
         newErrors.confirmPassword = 'Las contraseñas no coinciden';
       }
@@ -177,7 +169,6 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
     if (validateForm()) {
       mutation.mutate(formData);
     }
@@ -235,24 +226,6 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
               )}
             </div>
 
-            {/* Email */}
-            <div className="space-y-2">
-              <Label htmlFor="email">
-                Email <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="usuario@ejemplo.com"
-                className={errors.email ? 'border-red-500' : ''}
-              />
-              {errors.email && (
-                <p className="text-sm text-red-500">{errors.email}</p>
-              )}
-            </div>
-
             {/* Role */}
             <div className="space-y-2">
               <Label htmlFor="role">
@@ -260,7 +233,7 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
               </Label>
               <Select
                 value={formData.role}
-                onValueChange={(value: 'Admin' | 'Operator' | 'ReadOnly') =>
+                onValueChange={(value: UserRole) =>
                   setFormData({ ...formData, role: value })
                 }
               >
@@ -287,7 +260,7 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
                   type={showPassword ? 'text' : 'password'}
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  placeholder={isEditing ? 'Dejar vacío para no cambiar' : 'Mínimo 8 caracteres'}
+                  placeholder={isEditing ? 'Dejar vacío para no cambiar' : 'Mínimo 6 caracteres'}
                   className={errors.password ? 'border-red-500 pr-10' : 'pr-10'}
                 />
                 <button
@@ -303,7 +276,7 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
               )}
               {!isEditing && (
                 <p className="text-xs text-gray-500">
-                  Mínimo 8 caracteres, 1 mayúscula y 1 número
+                  Mínimo 6 caracteres
                 </p>
               )}
             </div>

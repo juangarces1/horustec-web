@@ -27,22 +27,13 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response) {
-      // El servidor respondió con un código de error
-      console.error('API Error Response:', {
-        status: error.response.status,
-        data: error.response.data,
-        headers: error.response.headers,
-      });
-    } else if (error.request) {
-      // La petición se hizo pero no hubo respuesta
-      console.error('API No Response:', {
-        message: 'El servidor no respondió',
-        request: error.request,
-      });
-    } else {
-      // Algo pasó al configurar la petición
-      console.error('API Request Error:', error.message);
+    if (error.response?.status === 401) {
+      // Token expirado o inválido — limpiar sesión y redirigir al login
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }

@@ -29,7 +29,16 @@ export default function LoginPage() {
       }));
       router.push('/');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Error al iniciar sesión');
+      console.error('Login error:', err);
+      if (err.code === 'ERR_NETWORK') {
+        setError('No se puede conectar con el servidor. Verifique que el backend esté corriendo.');
+      } else if (err.response) {
+        const data = err.response.data;
+        const msg = data?.error || data?.detail || data?.message || data?.title || (typeof data === 'string' ? data : null);
+        setError(msg || `Error del servidor (${err.response.status})`);
+      } else {
+        setError('Error de conexión al servidor');
+      }
     } finally {
       setLoading(false);
     }

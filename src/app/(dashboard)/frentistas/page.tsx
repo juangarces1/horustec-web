@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
@@ -9,8 +9,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Users, UserPlus, Edit2, Trash2, ArrowLeft, CreditCard, Mail, Phone, Calendar, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Users, UserPlus, Edit2, Trash2, ArrowLeft, CreditCard, Mail, Phone, Calendar, Search, ChevronLeft, ChevronRight, Camera, X } from 'lucide-react';
 import type { AttendantDto, CreateAttendantRequest } from '@/types/api';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 const ITEMS_PER_PAGE = 9;
 
@@ -177,9 +179,17 @@ export default function FrentistasPage() {
 
             <CardHeader className="pb-3">
               <div className="flex items-center gap-3 mb-2">
-                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white font-bold text-lg">
-                  {attendant.fullName.charAt(0).toUpperCase()}
-                </div>
+                {attendant.photoUrl ? (
+                  <img
+                    src={`${API_URL}${attendant.photoUrl}`}
+                    alt={attendant.fullName}
+                    className="h-12 w-12 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="h-12 w-12 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white font-bold text-lg">
+                    {attendant.fullName.charAt(0).toUpperCase()}
+                  </div>
+                )}
                 <div className="flex-1">
                   <CardTitle className="text-lg">{attendant.fullName}</CardTitle>
                   <CardDescription className="text-sm">
@@ -325,6 +335,11 @@ function AttendantForm({
     email: attendant?.email || '',
     notes: attendant?.notes || '',
   });
+  const [photoPreview, setPhotoPreview] = useState<string | null>(
+    attendant?.photoUrl ? `${API_URL}${attendant.photoUrl}` : null
+  );
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const mutation = useMutation({
     mutationFn: (data: CreateAttendantRequest) =>
@@ -341,6 +356,49 @@ function AttendantForm({
     },
   });
 
+  const uploadPhotoMutation = useMutation({
+    mutationFn: (file: File) => attendantsApi.uploadPhoto(attendant!.id, file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['attendants'] });
+      toast.success('Foto actualizada');
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || 'Error al subir foto');
+    },
+  });
+
+  const deletePhotoMutation = useMutation({
+    mutationFn: () => attendantsApi.deletePhoto(attendant!.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['attendants'] });
+      setPhotoPreview(null);
+      toast.success('Foto eliminada');
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || 'Error al eliminar foto');
+    },
+  });
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('La imagen no puede superar 5MB');
+      return;
+    }
+
+    // Show local preview
+    const reader = new FileReader();
+    reader.onload = () => setPhotoPreview(reader.result as string);
+    reader.readAsDataURL(file);
+
+    // Upload if editing existing attendant
+    if (attendant) {
+      uploadPhotoMutation.mutate(file);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     mutation.mutate(formData);
@@ -356,6 +414,63 @@ function AttendantForm({
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Photo Section */}
+          <div className="flex items-center gap-4 pb-4 border-b">
+            <div className="relative">
+              {photoPreview ? (
+                <img
+                  src={photoPreview}
+                  alt="Foto"
+                  className="h-20 w-20 rounded-full object-cover border-2 border-purple-200"
+                />
+              ) : (
+                <div className="h-20 w-20 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white font-bold text-2xl">
+                  {formData.fullName?.charAt(0)?.toUpperCase() || '?'}
+                </div>
+              )}
+              {(uploadPhotoMutation.isPending || deletePhotoMutation.isPending) && (
+                <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center">
+                  <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".jpg,.jpeg,.png,.webp"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                disabled={!attendant || uploadPhotoMutation.isPending}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Camera className="h-4 w-4" />
+                {photoPreview ? 'Cambiar foto' : 'Subir foto'}
+              </Button>
+              {!attendant && (
+                <p className="text-xs text-gray-500">Guarde primero para subir foto</p>
+              )}
+              {attendant && photoPreview && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 text-red-600 hover:bg-red-50"
+                  disabled={deletePhotoMutation.isPending}
+                  onClick={() => deletePhotoMutation.mutate()}
+                >
+                  <X className="h-4 w-4" />
+                  Eliminar foto
+                </Button>
+              )}
+            </div>
+          </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div>
               <Label htmlFor="code">Código *</Label>

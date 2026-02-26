@@ -1,5 +1,11 @@
 import * as signalR from '@microsoft/signalr';
 
+export interface VisualizationPayload {
+  nozzleCode: string;
+  currentCash: number;
+  tagId: string | null;
+}
+
 export class MonitoringHub {
   private connection: signalR.HubConnection | null = null;
 
@@ -11,7 +17,6 @@ export class MonitoringHub {
     this.connection = new signalR.HubConnectionBuilder()
       .withUrl(process.env.NEXT_PUBLIC_SIGNALR_HUB_URL || 'http://localhost:5000/hubs/monitoring', {
         accessTokenFactory: () => {
-          // Get token from localStorage
           if (typeof window !== 'undefined') {
             return localStorage.getItem('token') || '';
           }
@@ -27,7 +32,7 @@ export class MonitoringHub {
       console.log('SignalR Connected');
     } catch (err) {
       console.error('SignalR Connection Error:', err);
-      setTimeout(() => this.connect(), 5000); // Retry after 5 seconds
+      setTimeout(() => this.connect(), 5000);
     }
   }
 
@@ -42,8 +47,14 @@ export class MonitoringHub {
     this.connection?.on('StatusChanged', callback);
   }
 
-  onVisualizationUpdated(callback: (nozzleNumber: number, currentValue: number) => void): void {
-    this.connection?.on('VisualizationUpdated', callback);
+  onVisualizationUpdated(callback: (payload: VisualizationPayload) => void): void {
+    this.connection?.on('ReceiveVisualization', (data: VisualizationPayload | VisualizationPayload[]) => {
+      const items = Array.isArray(data) ? data : [data];
+      items.forEach((payload) => {
+        console.log('[SignalR] ReceiveVisualization:', payload);
+        callback(payload);
+      });
+    });
   }
 
   off(methodName: string): void {

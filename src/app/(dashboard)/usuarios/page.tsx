@@ -4,8 +4,8 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { usersApi } from '@/lib/api/users';
-import { UserDto } from '@/types/api';
-import { UserFormDialog, DeleteUserDialog } from '@/components/users';
+import { UserDto, UserRoleToNumber } from '@/types/api';
+import { UserFormDialog } from '@/components/users';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,29 +22,23 @@ import {
   UserCog,
   UserPlus,
   Edit2,
-  Trash2,
   Search,
   RefreshCw,
   ShieldCheck,
-  ShieldAlert,
   Eye,
   CheckCircle2,
   XCircle,
-  Clock,
+  UserX,
 } from 'lucide-react';
 
 export default function UsuariosPage() {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserDto | undefined>(undefined);
-  const [userToDelete, setUserToDelete] = useState<UserDto | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Get current user from localStorage to prevent self-deletion
   const currentUsername = typeof window !== 'undefined' ? localStorage.getItem('username') : null;
 
-  // Query to fetch users
   const {
     data: users = [],
     isLoading,
@@ -53,32 +47,33 @@ export default function UsuariosPage() {
   } = useQuery({
     queryKey: ['users'],
     queryFn: () => usersApi.getAll(),
-    refetchInterval: 30000, // Auto-refresh every 30 seconds
+    refetchInterval: 30000,
   });
 
-  // Mutation to delete user
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => usersApi.delete(id),
+  // Desactivar usuario (no hay DELETE en el backend)
+  const deactivateMutation = useMutation({
+    mutationFn: (user: UserDto) =>
+      usersApi.update({
+        id: user.id,
+        fullName: user.fullName,
+        role: UserRoleToNumber[user.role],
+        isActive: false,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
-      toast.success('Usuario eliminado exitosamente');
-      setIsDeleteDialogOpen(false);
-      setUserToDelete(null);
+      toast.success('Usuario desactivado exitosamente');
     },
     onError: (error: any) => {
-      toast.error(error?.response?.data?.message || 'Error al eliminar usuario');
+      toast.error(error?.response?.data?.detail || error?.response?.data?.message || 'Error al desactivar usuario');
     },
   });
 
-  // Filter users by search query
   const filteredUsers = useMemo(() => {
     if (!searchQuery) return users;
-
     const query = searchQuery.toLowerCase();
     return users.filter(
       (user) =>
         user.username.toLowerCase().includes(query) ||
-        user.email.toLowerCase().includes(query) ||
         user.fullName.toLowerCase().includes(query)
     );
   }, [users, searchQuery]);
@@ -93,28 +88,20 @@ export default function UsuariosPage() {
     setIsDialogOpen(true);
   };
 
-  const handleDeleteClick = (user: UserDto) => {
-    // Prevent user from deleting themselves
+  const handleDeactivate = (user: UserDto) => {
     if (user.username === currentUsername) {
-      toast.error('No puedes eliminar tu propio usuario');
+      toast.error('No puedes desactivar tu propio usuario');
       return;
     }
 
-    // Check if trying to delete the last admin
-    const adminUsers = users.filter((u) => u.role === 'Admin');
+    const adminUsers = users.filter((u) => u.role === 'Admin' && u.isActive);
     if (user.role === 'Admin' && adminUsers.length === 1) {
-      toast.error('No se puede eliminar el último administrador del sistema');
+      toast.error('No se puede desactivar el último administrador activo');
       return;
     }
 
-    setUserToDelete(user);
-    setIsDeleteDialogOpen(true);
-  };
-
-  const handleDeleteConfirm = () => {
-    if (userToDelete) {
-      deleteMutation.mutate(userToDelete.id);
-    }
+    if (!confirm(`¿Estás seguro de desactivar al usuario "${user.username}"?`)) return;
+    deactivateMutation.mutate(user);
   };
 
   const getRoleBadge = (role: string) => {
@@ -156,21 +143,6 @@ export default function UsuariosPage() {
         Inactivo
       </Badge>
     );
-  };
-
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return '-';
-    try {
-      return new Date(dateString).toLocaleString('es-ES', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch {
-      return '-';
-    }
   };
 
   if (isLoading) {
@@ -264,7 +236,7 @@ export default function UsuariosPage() {
         </div>
       </div>
 
-      {/* Search and Actions */}
+      {/* Search */}
       <Card className="mb-6 border-2 border-indigo-100 bg-white/90 backdrop-blur-sm">
         <CardContent className="p-4">
           <div className="flex flex-col md:flex-row gap-4 items-center">
@@ -272,7 +244,7 @@ export default function UsuariosPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
                 type="text"
-                placeholder="Buscar por nombre de usuario, email o nombre completo..."
+                placeholder="Buscar por nombre de usuario o nombre completo..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 bg-white"
@@ -291,11 +263,9 @@ export default function UsuariosPage() {
         </CardContent>
       </Card>
 
-      {/* Results count */}
       {searchQuery && (
         <div className="mb-4 text-sm text-gray-600">
-          {filteredUsers.length} resultado{filteredUsers.length !== 1 ? 's' : ''} encontrado
-          {filteredUsers.length !== 1 ? 's' : ''}
+          {filteredUsers.length} resultado{filteredUsers.length !== 1 ? 's' : ''} encontrado{filteredUsers.length !== 1 ? 's' : ''}
         </div>
       )}
 
@@ -307,17 +277,15 @@ export default function UsuariosPage() {
               <TableRow className="bg-gradient-to-r from-indigo-50 to-purple-50">
                 <TableHead className="font-bold">Usuario</TableHead>
                 <TableHead className="font-bold">Nombre Completo</TableHead>
-                <TableHead className="font-bold">Email</TableHead>
                 <TableHead className="font-bold">Rol</TableHead>
                 <TableHead className="font-bold">Estado</TableHead>
-                <TableHead className="font-bold">Último Acceso</TableHead>
                 <TableHead className="font-bold text-center">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredUsers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12">
+                  <TableCell colSpan={5} className="text-center py-12">
                     <UserCog className="h-16 w-16 text-gray-300 mx-auto mb-4" />
                     <p className="text-gray-500 text-lg mb-2">
                       {searchQuery ? 'No se encontraron resultados' : 'No hay usuarios registrados'}
@@ -352,15 +320,8 @@ export default function UsuariosPage() {
                       </div>
                     </TableCell>
                     <TableCell className="font-medium text-gray-700">{user.fullName}</TableCell>
-                    <TableCell className="text-gray-600">{user.email}</TableCell>
                     <TableCell>{getRoleBadge(user.role)}</TableCell>
                     <TableCell>{getStatusBadge(user.isActive)}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2 text-gray-600 text-sm">
-                        <Clock className="h-3.5 w-3.5" />
-                        {formatDate(user.lastLogin)}
-                      </div>
-                    </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-center gap-2">
                         <Button
@@ -372,15 +333,18 @@ export default function UsuariosPage() {
                           <Edit2 className="h-3.5 w-3.5" />
                           Editar
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="gap-1.5 hover:bg-red-50 hover:text-red-700 hover:border-red-300"
-                          onClick={() => handleDeleteClick(user)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          Eliminar
-                        </Button>
+                        {user.isActive && user.username !== currentUsername && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1.5 hover:bg-red-50 hover:text-red-700 hover:border-red-300"
+                            onClick={() => handleDeactivate(user)}
+                            disabled={deactivateMutation.isPending}
+                          >
+                            <UserX className="h-3.5 w-3.5" />
+                            Desactivar
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -391,7 +355,7 @@ export default function UsuariosPage() {
         </div>
       </Card>
 
-      {/* Dialogs */}
+      {/* Dialog */}
       <UserFormDialog
         open={isDialogOpen}
         onOpenChange={setIsDialogOpen}
@@ -399,14 +363,6 @@ export default function UsuariosPage() {
         onSuccess={() => {
           refetch();
         }}
-      />
-
-      <DeleteUserDialog
-        open={isDeleteDialogOpen}
-        onOpenChange={setIsDeleteDialogOpen}
-        user={userToDelete}
-        onConfirm={handleDeleteConfirm}
-        isDeleting={deleteMutation.isPending}
       />
     </div>
   );

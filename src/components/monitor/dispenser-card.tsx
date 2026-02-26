@@ -2,11 +2,16 @@ import { Card } from '@/components/ui/card';
 import { NozzleStatus } from '@/types/api';
 import { cn } from '@/lib/utils';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+
 interface DispenserCardProps {
   dispenserNumber: number;
   status: NozzleStatus;
   currentLiters: number | null;
   activeNozzle: { code: string; product: string } | null;
+  attendantName?: string | null;
+  attendantPhotoUrl?: string | null;
+  calculatedLiters?: number | null;
 }
 
 const statusColors: Record<NozzleStatus, string> = {
@@ -40,7 +45,7 @@ const productIcons: Record<string, string> = {
   'Exonerado': '🔰',
 };
 
-export function DispenserCard({ dispenserNumber, status, currentLiters, activeNozzle }: DispenserCardProps) {
+export function DispenserCard({ dispenserNumber, status, currentLiters, activeNozzle, attendantName, attendantPhotoUrl, calculatedLiters }: DispenserCardProps) {
   return (
     <Card
       className={cn(
@@ -55,25 +60,45 @@ export function DispenserCard({ dispenserNumber, status, currentLiters, activeNo
         {/* Status label */}
         <div className="text-base font-semibold text-center">{statusLabels[status]}</div>
 
-        {/* Show money when fueling */}
+        {/* Show money and liters when fueling */}
         {currentLiters !== null && currentLiters > 0 && (
-          <div className="font-mono font-bold mt-2 bg-white/20 px-4 py-2 rounded-xl shadow-lg">
-            <span className="text-2xl">₡</span>
-            <span className="text-3xl">{Math.round(currentLiters).toLocaleString('es-ES')}</span>
+          <div className="flex flex-col items-center gap-1 mt-2">
+            <div className="font-mono font-bold bg-white/20 px-4 py-2 rounded-xl shadow-lg">
+              <span className="text-2xl">₡</span>
+              <span className="text-3xl">{Math.round(currentLiters).toLocaleString('es-ES')}</span>
+            </div>
+            {calculatedLiters != null && calculatedLiters > 0 && (
+              <div className="text-sm font-medium text-center">
+                {calculatedLiters.toFixed(2)} L
+              </div>
+            )}
           </div>
         )}
 
-        {/* Show active nozzle info when there's activity */}
+        {/* Product type */}
         {activeNozzle && (
-          <div className="mt-2 w-full">
-            <div className="bg-white/20 backdrop-blur-sm px-4 py-3 rounded-xl">
-              <div className="flex items-center justify-center gap-2">
-                <span className="text-sm font-medium">Manguera #{activeNozzle.code}</span>
-              </div>
-              <div className="flex items-center justify-center gap-2 mt-1">
-                <span className="text-2xl">{productIcons[activeNozzle.product] || '⛽'}</span>
-                <span className="text-base font-bold">{activeNozzle.product}</span>
-              </div>
+          <div className="flex items-center justify-center gap-1.5">
+            <span className="text-lg">{productIcons[activeNozzle.product] || '⛽'}</span>
+            <span className="text-sm font-bold">{activeNozzle.product}</span>
+          </div>
+        )}
+
+        {/* Attendant — shown independently of activeNozzle */}
+        {attendantName && (
+          <div className="w-full bg-white/20 backdrop-blur-sm px-3 py-2.5 rounded-xl">
+            <div className="flex flex-col items-center gap-1.5">
+              {attendantPhotoUrl ? (
+                <img
+                  src={`${API_URL}${attendantPhotoUrl}`}
+                  alt={attendantName}
+                  className="h-10 w-10 rounded-full object-cover border-2 border-white/40"
+                />
+              ) : (
+                <div className="h-10 w-10 rounded-full bg-white/30 flex items-center justify-center text-lg font-bold">
+                  {attendantName.charAt(0).toUpperCase()}
+                </div>
+              )}
+              <span className="text-xs font-medium text-center leading-tight truncate w-full">{attendantName}</span>
             </div>
           </div>
         )}

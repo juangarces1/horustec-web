@@ -97,10 +97,10 @@ export function ActiveFuelings({ statuses, visualizations }: ActiveFuelingsProps
                   </div>
                   <div className="text-right">
                     <p className="text-lg font-bold text-orange-600">
-                      {vis ? `₡${(vis.currentLiters * 100).toFixed(0)}` : '---'}
+                      {vis ? `₡${(vis.currentCash * 100).toFixed(0)}` : '---'}
                     </p>
                     <p className="text-xs text-slate-500">
-                      {vis ? `${vis.currentLiters.toFixed(2)} L` : '---'}
+                      {vis ? `${vis.currentCash.toFixed(2)} L` : '---'}
                     </p>
                   </div>
                 </div>
