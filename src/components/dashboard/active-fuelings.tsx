@@ -8,6 +8,7 @@ import type { NozzleStatusDto, VisualizationDto } from '@/types/api';
 interface ActiveFuelingsProps {
   statuses: NozzleStatusDto[];
   visualizations: VisualizationDto[];
+  pricesByProduct?: Map<string, number>;
 }
 
 // Product mapping based on nozzle configuration
@@ -44,7 +45,7 @@ const NOZZLE_PRODUCTS: Record<string, string> = {
   '30': 'Diesel',
 };
 
-export function ActiveFuelings({ statuses, visualizations }: ActiveFuelingsProps) {
+export function ActiveFuelings({ statuses, visualizations, pricesByProduct }: ActiveFuelingsProps) {
   // Filter nozzles with status 3 (Fueling)
   const activeNozzles = statuses.filter((status) => status.status === 3);
 
@@ -78,6 +79,10 @@ export function ActiveFuelings({ statuses, visualizations }: ActiveFuelingsProps
               const vis = visMap.get(nozzle.nozzleCode);
               const dispenserNumber = Math.ceil(parseInt(nozzle.nozzleCode) / 3);
               const product = NOZZLE_PRODUCTS[nozzle.nozzleCode] || 'Desconocido';
+              const unitPrice = pricesByProduct?.get(product);
+              const liters = vis && unitPrice && unitPrice > 0
+                ? (vis.currentCash * 100) / unitPrice
+                : null;
 
               return (
                 <div
@@ -99,9 +104,11 @@ export function ActiveFuelings({ statuses, visualizations }: ActiveFuelingsProps
                     <p className="text-lg font-bold text-orange-600">
                       {vis ? `₡${(vis.currentCash * 100).toFixed(0)}` : '---'}
                     </p>
-                    <p className="text-xs text-slate-500">
-                      {vis ? `${vis.currentCash.toFixed(2)} L` : '---'}
-                    </p>
+                    {liters != null && liters > 0 && (
+                      <p className="text-xs text-slate-500">
+                        {liters.toFixed(2)} L
+                      </p>
+                    )}
                   </div>
                 </div>
               );

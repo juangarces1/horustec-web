@@ -18,7 +18,6 @@ import {
   Users,
   UserCog,
   Package,
-  DollarSign,
   Settings,
   LogOut,
   Zap,
@@ -70,7 +69,6 @@ const navGroups: NavGroup[] = [
       { label: 'Frentistas', href: '/frentistas', icon: Users },
       { label: 'Usuarios', href: '/usuarios', icon: UserCog },
       { label: 'Productos', href: '/productos', icon: Package },
-      { label: 'Precios', href: '/precios', icon: DollarSign },
     ],
   },
   {

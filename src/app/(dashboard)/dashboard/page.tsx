@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { monitoringApi } from '@/lib/api/monitoring';
 import { fuelingApi } from '@/lib/api/fueling';
+import { pricesApi } from '@/lib/api/prices';
 import { KPICard } from '@/components/dashboard/kpi-card';
 import { SalesChart } from '@/components/dashboard/sales-chart';
 import { ActiveFuelings } from '@/components/dashboard/active-fuelings';
@@ -114,6 +115,17 @@ export default function DashboardPage() {
     refetchInterval: 2000, // Refetch every 2 seconds
   });
 
+  // Fetch product prices for liters calculation
+  const { data: products = [] } = useQuery({
+    queryKey: ['prices'],
+    queryFn: pricesApi.getCurrent,
+  });
+
+  // Build price lookup by product name
+  const pricesByProduct = new Map(
+    products.map((p) => [p.productName, p.currentPrice])
+  );
+
   // Handle manual refresh
   const handleRefresh = () => {
     refetchRecent();
@@ -214,7 +226,7 @@ export default function DashboardPage() {
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left Column - Active Fuelings */}
-        <ActiveFuelings statuses={statuses} visualizations={visualizations} />
+        <ActiveFuelings statuses={statuses} visualizations={visualizations} pricesByProduct={pricesByProduct} />
 
         {/* Right Column */}
         <div className="space-y-6">
