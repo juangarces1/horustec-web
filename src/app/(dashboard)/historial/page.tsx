@@ -7,6 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { AttendantPerformanceChart } from '@/components/historial/attendant-performance-chart';
+import { HourlyTrafficChart } from '@/components/historial/hourly-traffic-chart';
+import { ProductTrendChart } from '@/components/historial/product-trend-chart';
+import { ChevronDown, ChevronUp, BarChart3 } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -29,6 +33,8 @@ function HistorialContent() {
   const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);
   const [nozzleFilter, setNozzleFilter] = useState('');
+
+  const [chartsOpen, setChartsOpen] = useState(true);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -181,6 +187,29 @@ function HistorialContent() {
                 <div className="text-5xl font-bold">₡{formatCurrency(totalCash)}</div>
               </CardContent>
             </Card>
+          </div>
+        )}
+
+        {/* Charts Section */}
+        {transactions && transactions.length > 0 && (
+          <div className="mb-8">
+            <button
+              onClick={() => setChartsOpen(!chartsOpen)}
+              className="flex items-center gap-2 mb-4 text-lg font-semibold text-slate-700 hover:text-indigo-600 transition-colors"
+            >
+              <BarChart3 className="h-5 w-5" />
+              Graficas de Rendimiento
+              {chartsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+            {chartsOpen && (
+              <div className="space-y-6">
+                <div className="grid gap-6 md:grid-cols-2">
+                  <AttendantPerformanceChart transactions={transactions} />
+                  <HourlyTrafficChart transactions={transactions} />
+                </div>
+                <ProductTrendChart transactions={transactions} />
+              </div>
+            )}
           </div>
         )}
 
