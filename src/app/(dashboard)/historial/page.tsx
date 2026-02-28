@@ -7,9 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { AttendantPerformanceChart } from '@/components/historial/attendant-performance-chart';
+import { AttendantPerformanceReport } from '@/components/historial/attendant-performance-report';
 import { HourlyTrafficChart } from '@/components/historial/hourly-traffic-chart';
 import { ProductTrendChart } from '@/components/historial/product-trend-chart';
+import { WeekdayTrafficChart } from '@/components/historial/weekday-traffic-chart';
 import { ChevronDown, ChevronUp, BarChart3 } from 'lucide-react';
 import {
   Table,
@@ -203,9 +204,10 @@ function HistorialContent() {
             </button>
             {chartsOpen && (
               <div className="space-y-6">
+                <AttendantPerformanceReport />
                 <div className="grid gap-6 md:grid-cols-2">
-                  <AttendantPerformanceChart transactions={transactions} />
                   <HourlyTrafficChart transactions={transactions} />
+                  <WeekdayTrafficChart transactions={transactions} />
                 </div>
                 <ProductTrendChart transactions={transactions} />
               </div>
