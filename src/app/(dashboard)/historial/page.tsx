@@ -35,7 +35,7 @@ function HistorialContent() {
   const [toDate, setToDate] = useState(today);
   const [nozzleFilter, setNozzleFilter] = useState('');
 
-  const [chartsOpen, setChartsOpen] = useState(true);
+  const [chartsOpen, setChartsOpen] = useState(false);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -188,30 +188,6 @@ function HistorialContent() {
                 <div className="text-5xl font-bold">₡{formatCurrency(totalCash)}</div>
               </CardContent>
             </Card>
-          </div>
-        )}
-
-        {/* Charts Section */}
-        {transactions && transactions.length > 0 && (
-          <div className="mb-8">
-            <button
-              onClick={() => setChartsOpen(!chartsOpen)}
-              className="flex items-center gap-2 mb-4 text-lg font-semibold text-slate-700 hover:text-indigo-600 transition-colors"
-            >
-              <BarChart3 className="h-5 w-5" />
-              Graficas de Rendimiento
-              {chartsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </button>
-            {chartsOpen && (
-              <div className="space-y-6">
-                <AttendantPerformanceReport />
-                <div className="grid gap-6 md:grid-cols-2">
-                  <HourlyTrafficChart transactions={transactions} />
-                  <WeekdayTrafficChart transactions={transactions} />
-                </div>
-                <ProductTrendChart transactions={transactions} />
-              </div>
-            )}
           </div>
         )}
 
@@ -383,6 +359,30 @@ function HistorialContent() {
             )}
           </CardContent>
         </Card>
+
+        {/* Charts Section */}
+        {transactions && transactions.length > 0 && (
+          <div className="mt-8">
+            <button
+              onClick={() => setChartsOpen(!chartsOpen)}
+              className="flex items-center gap-2 mb-4 text-lg font-semibold text-slate-700 hover:text-indigo-600 transition-colors"
+            >
+              <BarChart3 className="h-5 w-5" />
+              Graficas de Rendimiento
+              {chartsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+            {chartsOpen && (
+              <div className="space-y-6">
+                <AttendantPerformanceReport />
+                <div className="grid gap-6 md:grid-cols-2">
+                  <HourlyTrafficChart transactions={transactions} />
+                  <WeekdayTrafficChart transactions={transactions} />
+                </div>
+                <ProductTrendChart transactions={transactions} />
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
