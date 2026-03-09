@@ -7,6 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { AttendantPerformanceReport } from '@/components/historial/attendant-performance-report';
 import { HourlyTrafficChart } from '@/components/historial/hourly-traffic-chart';
 import { ProductTrendChart } from '@/components/historial/product-trend-chart';
@@ -22,6 +29,13 @@ import {
 } from '@/components/ui/table';
 import Link from 'next/link';
 
+const FUEL_NAMES: Record<string, string> = {
+  '01': 'Regular',
+  '02': 'Exonerado',
+  '03': 'Super',
+  '10': 'Diesel',
+};
+
 function HistorialContent() {
   // Default: today (local timezone)
   const today = (() => {
@@ -33,7 +47,8 @@ function HistorialContent() {
   })();
   const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);
-  const [nozzleFilter, setNozzleFilter] = useState('');
+  const [zoneFilter, setZoneFilter] = useState('');
+  const [productFilter, setProductFilter] = useState('');
 
   const [chartsOpen, setChartsOpen] = useState(false);
 
@@ -42,29 +57,44 @@ function HistorialContent() {
   const itemsPerPage = 10;
 
   const { data: transactions, isLoading, error, refetch } = useQuery({
-    queryKey: ['transactions', fromDate, toDate, nozzleFilter],
+    queryKey: ['transactions', fromDate, toDate],
     queryFn: () => fuelingApi.getTransactions(
       fromDate ? `${fromDate}T00:00:00` : undefined,
       toDate ? `${toDate}T23:59:59` : undefined,
-      nozzleFilter ? parseInt(nozzleFilter) : undefined
     ),
   });
 
+  const filteredTransactions = useMemo(() => {
+    if (!transactions) return [];
+    let result = transactions;
+    if (productFilter) {
+      result = result.filter((t) => t.fuelCode === productFilter);
+    }
+    if (zoneFilter === '1') {
+      result = result.filter((t) => (t.nozzleNumber ?? 0) <= 12);
+    } else if (zoneFilter === '2') {
+      result = result.filter((t) => (t.nozzleNumber ?? 0) > 12);
+    }
+    return result;
+  }, [transactions, productFilter, zoneFilter]);
+
   // Pagination logic
   const paginatedData = useMemo(() => {
-    if (!transactions) return { items: [], totalPages: 0, startIndex: 0, endIndex: 0 };
+    if (filteredTransactions.length === 0) return { items: [], totalPages: 0, startIndex: 0, endIndex: 0 };
 
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
-    const items = transactions.slice(startIndex, endIndex);
-    const totalPages = Math.ceil(transactions.length / itemsPerPage);
+    const items = filteredTransactions.slice(startIndex, endIndex);
+    const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
 
-    return { items, totalPages, startIndex: startIndex + 1, endIndex: Math.min(endIndex, transactions.length) };
-  }, [transactions, currentPage]);
+    return { items, totalPages, startIndex: startIndex + 1, endIndex: Math.min(endIndex, filteredTransactions.length) };
+  }, [filteredTransactions, currentPage]);
 
   // Reset to page 1 when filters change
   const handleRefetch = () => {
     setCurrentPage(1);
+    setProductFilter('');
+    setZoneFilter('');
     refetch();
   };
 
@@ -86,8 +116,8 @@ function HistorialContent() {
     });
   };
 
-  const totalCash = transactions?.reduce((sum, t) => sum + t.totalCash, 0) || 0;
-  const totalLiters = transactions?.reduce((sum, t) => sum + t.totalLiters, 0) || 0;
+  const totalCash = filteredTransactions.reduce((sum, t) => sum + t.totalCash, 0);
+  const totalLiters = filteredTransactions.reduce((sum, t) => sum + t.totalLiters, 0);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 p-8">
@@ -113,7 +143,7 @@ function HistorialContent() {
             <CardTitle className="text-xl">🔍 Filtros de Búsqueda</CardTitle>
           </CardHeader>
           <CardContent className="pt-6">
-            <div className="grid gap-6 md:grid-cols-4">
+            <div className="grid gap-6 md:grid-cols-5 lg:grid-cols-5">
               <div>
                 <Label htmlFor="from" className="text-sm font-semibold text-gray-700">
                   📅 Desde
@@ -139,17 +169,35 @@ function HistorialContent() {
                 />
               </div>
               <div>
-                <Label htmlFor="nozzle" className="text-sm font-semibold text-gray-700">
-                  ⛽ Surtidor
+                <Label className="text-sm font-semibold text-gray-700">
+                  ⛽ Combustible
                 </Label>
-                <Input
-                  id="nozzle"
-                  type="number"
-                  placeholder="Ej: 5 (opcional)"
-                  value={nozzleFilter}
-                  onChange={(e) => setNozzleFilter(e.target.value)}
-                  className="mt-1.5 border-2 focus:border-purple-500"
-                />
+                <Select value={productFilter} onValueChange={(v) => { setProductFilter(v === 'all' ? '' : v); setCurrentPage(1); }}>
+                  <SelectTrigger className="mt-1.5 w-full border-2 focus:border-blue-500">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    {Object.entries(FUEL_NAMES).map(([code, name]) => (
+                      <SelectItem key={code} value={code}>{name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-sm font-semibold text-gray-700">
+                  📍 Zona
+                </Label>
+                <Select value={zoneFilter} onValueChange={(v) => { setZoneFilter(v === 'all' ? '' : v); setCurrentPage(1); }}>
+                  <SelectTrigger className="mt-1.5 w-full border-2 focus:border-blue-500">
+                    <SelectValue placeholder="Todas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas</SelectItem>
+                    <SelectItem value="1">Zona 1 (Manguera 1-12)</SelectItem>
+                    <SelectItem value="2">Zona 2 (Manguera 13+)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="flex items-end">
                 <Button
@@ -164,13 +212,13 @@ function HistorialContent() {
         </Card>
 
         {/* Summary Cards */}
-        {transactions && transactions.length > 0 && (
+        {transactions && filteredTransactions.length > 0 && (
           <div className="mb-8 grid gap-6 md:grid-cols-3">
             <Card className="border-0 shadow-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div>
               <CardContent className="pt-6 relative">
                 <div className="text-sm font-semibold opacity-90 mb-2">📊 Total Transacciones</div>
-                <div className="text-5xl font-bold">{transactions.length}</div>
+                <div className="text-5xl font-bold">{filteredTransactions.length}</div>
               </CardContent>
             </Card>
             <Card className="border-0 shadow-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white overflow-hidden">
@@ -211,7 +259,7 @@ function HistorialContent() {
                 </p>
               </div>
             )}
-            {transactions && transactions.length === 0 && (
+            {transactions && filteredTransactions.length === 0 && (
               <div className="text-center py-16">
                 <div className="text-6xl mb-4">📭</div>
                 <p className="text-gray-600 text-lg">
@@ -219,7 +267,7 @@ function HistorialContent() {
                 </p>
               </div>
             )}
-            {transactions && transactions.length > 0 && (
+            {transactions && filteredTransactions.length > 0 && (
               <>
                 <div className="overflow-x-auto">
                   <Table>
@@ -255,7 +303,7 @@ function HistorialContent() {
                           </TableCell>
                           <TableCell>
                             <span className="inline-flex items-center px-3 py-1 rounded-full bg-purple-100 text-purple-800 font-medium">
-                              {transaction.productName || transaction.fuelCode || '-'}
+                              {transaction.productName || (transaction.fuelCode && FUEL_NAMES[transaction.fuelCode]) || transaction.fuelCode || '-'}
                             </span>
                           </TableCell>
                           <TableCell>
@@ -303,7 +351,7 @@ function HistorialContent() {
                   <div className="text-sm text-gray-600">
                     Mostrando <span className="font-semibold text-gray-900">{paginatedData.startIndex}</span> a{' '}
                     <span className="font-semibold text-gray-900">{paginatedData.endIndex}</span> de{' '}
-                    <span className="font-semibold text-gray-900">{transactions.length}</span> resultados
+                    <span className="font-semibold text-gray-900">{filteredTransactions.length}</span> resultados
                   </div>
                   <div className="flex gap-2">
                     <Button

@@ -45,8 +45,8 @@ interface AttendantRow {
   motorcycles: number;
 }
 
-function classifyVehicle(productName: string | null, liters: number): 'truck' | 'car' | 'motorcycle' {
-  const isDiesel = productName?.toLowerCase().includes('diesel') ?? false;
+function classifyVehicle(fuelCode: string | null, liters: number): 'truck' | 'car' | 'motorcycle' {
+  const isDiesel = fuelCode === '10';
   if (isDiesel && liters > 50) return 'truck';
   if (liters >= 10) return 'car';
   return 'motorcycle';
@@ -144,7 +144,7 @@ export function AttendantPerformanceReport() {
       row.totalVolume += t.totalLiters;
       row.totalAmount += t.totalCash;
 
-      const vehicle = classifyVehicle(t.productName, t.totalLiters);
+      const vehicle = classifyVehicle(t.fuelCode, t.totalLiters);
       if (vehicle === 'truck') row.trucks++;
       else if (vehicle === 'car') row.cars++;
       else row.motorcycles++;

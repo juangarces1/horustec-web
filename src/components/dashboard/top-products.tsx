@@ -5,6 +5,13 @@ import { Badge } from '@/components/ui/badge';
 import { Package } from 'lucide-react';
 import type { FuelingTransactionDto } from '@/types/api';
 
+const FUEL_NAMES: Record<string, string> = {
+  '01': 'Regular',
+  '02': 'Exonerado',
+  '03': 'Super',
+  '10': 'Diesel',
+};
+
 interface TopProductsProps {
   transactions: FuelingTransactionDto[];
 }
@@ -18,11 +25,11 @@ interface ProductSummary {
 }
 
 export function TopProducts({ transactions }: TopProductsProps) {
-  // Group transactions by product (filter out those without product)
+  // Group transactions by product using fuelCode mapping
   const productMap = transactions
-    .filter(tx => tx.productName && tx.productName.trim() !== '')
+    .filter(tx => tx.fuelCode && FUEL_NAMES[tx.fuelCode])
     .reduce((acc, tx) => {
-      const product = tx.productName!;
+      const product = FUEL_NAMES[tx.fuelCode!];
       if (!acc[product]) {
         acc[product] = { product, liters: 0, cash: 0, count: 0, percentage: 0 };
       }
@@ -43,8 +50,6 @@ export function TopProducts({ transactions }: TopProductsProps) {
     }))
     .sort((a, b) => b.liters - a.liters)
     .slice(0, 3);
-
-  console.log('📦 Productos procesados:', products.length, products);
 
   // Color mapping for different products
   const getProductColor = (index: number) => {
