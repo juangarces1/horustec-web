@@ -18,7 +18,7 @@ import { AttendantPerformanceReport } from '@/components/historial/attendant-per
 import { HourlyTrafficChart } from '@/components/historial/hourly-traffic-chart';
 import { ProductTrendChart } from '@/components/historial/product-trend-chart';
 import { WeekdayTrafficChart } from '@/components/historial/weekday-traffic-chart';
-import { ChevronDown, ChevronUp, BarChart3 } from 'lucide-react';
+import { ChevronDown, ChevronUp, BarChart3, Calendar, Clock, Search, Fuel, MapPin } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -46,7 +46,9 @@ function HistorialContent() {
     return `${yyyy}-${mm}-${dd}`;
   })();
   const [fromDate, setFromDate] = useState(today);
+  const [fromTime, setFromTime] = useState('00:00');
   const [toDate, setToDate] = useState(today);
+  const [toTime, setToTime] = useState('23:59');
   const [zoneFilter, setZoneFilter] = useState('');
   const [productFilter, setProductFilter] = useState('');
 
@@ -57,10 +59,10 @@ function HistorialContent() {
   const itemsPerPage = 10;
 
   const { data: transactions, isLoading, error, refetch } = useQuery({
-    queryKey: ['transactions', fromDate, toDate],
+    queryKey: ['transactions', fromDate, fromTime, toDate, toTime],
     queryFn: () => fuelingApi.getTransactions(
-      fromDate ? `${fromDate}T00:00:00` : undefined,
-      toDate ? `${toDate}T23:59:59` : undefined,
+      fromDate ? `${fromDate}T${fromTime || '00:00'}:00` : undefined,
+      toDate ? `${toDate}T${toTime || '23:59'}:59` : undefined,
     ),
   });
 
@@ -95,7 +97,7 @@ function HistorialContent() {
     setCurrentPage(1);
     setProductFilter('');
     setZoneFilter('');
-    refetch();
+    void refetch();
   };
 
   const formatDate = (dateString: string) => {
@@ -139,41 +141,80 @@ function HistorialContent() {
 
         {/* Filters Card */}
         <Card className="mb-8 border-0 shadow-xl bg-white/80 backdrop-blur-sm">
-          <CardHeader className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-t-lg">
-            <CardTitle className="text-xl">🔍 Filtros de Búsqueda</CardTitle>
+          <CardHeader className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-t-lg py-4">
+            <CardTitle className="text-xl flex items-center gap-2">
+              <Search className="h-5 w-5" />
+              Filtros de Busqueda
+            </CardTitle>
           </CardHeader>
-          <CardContent className="pt-6">
-            <div className="grid gap-6 md:grid-cols-5 lg:grid-cols-5">
+          <CardContent className="pt-6 pb-5">
+            {/* Date/Time Row */}
+            <div className="grid gap-6 md:grid-cols-2 mb-5">
+              {/* Desde */}
               <div>
-                <Label htmlFor="from" className="text-sm font-semibold text-gray-700">
-                  📅 Desde
+                <Label className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
+                  <Calendar className="h-3.5 w-3.5 text-blue-500" />
+                  Desde
                 </Label>
-                <Input
-                  id="from"
-                  type="date"
-                  value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
-                  className="mt-1.5 border-2 focus:border-blue-500"
-                />
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Input
+                      id="from"
+                      type="date"
+                      value={fromDate}
+                      onChange={(e) => setFromDate(e.target.value)}
+                      className="border-2 border-gray-200 focus:border-blue-500 focus:ring-blue-500/20 rounded-lg h-10 transition-colors"
+                    />
+                  </div>
+                  <div className="relative w-[130px]">
+                    <Clock className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none z-10" />
+                    <Input
+                      type="time"
+                      value={fromTime}
+                      onChange={(e) => setFromTime(e.target.value)}
+                      className="border-2 border-gray-200 focus:border-blue-500 focus:ring-blue-500/20 rounded-lg h-10 pl-8 transition-colors"
+                    />
+                  </div>
+                </div>
               </div>
+              {/* Hasta */}
               <div>
-                <Label htmlFor="to" className="text-sm font-semibold text-gray-700">
-                  📅 Hasta
+                <Label className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
+                  <Calendar className="h-3.5 w-3.5 text-blue-500" />
+                  Hasta
                 </Label>
-                <Input
-                  id="to"
-                  type="date"
-                  value={toDate}
-                  onChange={(e) => setToDate(e.target.value)}
-                  className="mt-1.5 border-2 focus:border-blue-500"
-                />
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Input
+                      id="to"
+                      type="date"
+                      value={toDate}
+                      onChange={(e) => setToDate(e.target.value)}
+                      className="border-2 border-gray-200 focus:border-blue-500 focus:ring-blue-500/20 rounded-lg h-10 transition-colors"
+                    />
+                  </div>
+                  <div className="relative w-[130px]">
+                    <Clock className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none z-10" />
+                    <Input
+                      type="time"
+                      value={toTime}
+                      onChange={(e) => setToTime(e.target.value)}
+                      className="border-2 border-gray-200 focus:border-blue-500 focus:ring-blue-500/20 rounded-lg h-10 pl-8 transition-colors"
+                    />
+                  </div>
+                </div>
               </div>
+            </div>
+
+            {/* Filters + Search Row */}
+            <div className="grid gap-4 grid-cols-[1fr_1fr_auto]">
               <div>
-                <Label className="text-sm font-semibold text-gray-700">
-                  ⛽ Combustible
+                <Label className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
+                  <Fuel className="h-3.5 w-3.5 text-purple-500" />
+                  Combustible
                 </Label>
                 <Select value={productFilter} onValueChange={(v) => { setProductFilter(v === 'all' ? '' : v); setCurrentPage(1); }}>
-                  <SelectTrigger className="mt-1.5 w-full border-2 focus:border-blue-500">
+                  <SelectTrigger className="w-full border-2 border-gray-200 focus:border-blue-500 rounded-lg h-10 transition-colors">
                     <SelectValue placeholder="Todos" />
                   </SelectTrigger>
                   <SelectContent>
@@ -185,11 +226,12 @@ function HistorialContent() {
                 </Select>
               </div>
               <div>
-                <Label className="text-sm font-semibold text-gray-700">
-                  📍 Zona
+                <Label className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-emerald-500" />
+                  Zona
                 </Label>
                 <Select value={zoneFilter} onValueChange={(v) => { setZoneFilter(v === 'all' ? '' : v); setCurrentPage(1); }}>
-                  <SelectTrigger className="mt-1.5 w-full border-2 focus:border-blue-500">
+                  <SelectTrigger className="w-full border-2 border-gray-200 focus:border-blue-500 rounded-lg h-10 transition-colors">
                     <SelectValue placeholder="Todas" />
                   </SelectTrigger>
                   <SelectContent>
@@ -202,9 +244,10 @@ function HistorialContent() {
               <div className="flex items-end">
                 <Button
                   onClick={handleRefetch}
-                  className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white font-semibold shadow-lg"
+                  className="h-10 px-6 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white font-semibold shadow-lg rounded-lg transition-all hover:shadow-xl"
                 >
-                  🔍 Buscar
+                  <Search className="h-4 w-4 mr-2" />
+                  Buscar
                 </Button>
               </div>
             </div>
