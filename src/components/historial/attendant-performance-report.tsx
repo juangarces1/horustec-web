@@ -15,24 +15,16 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Trophy, Truck, Car, Bike, Clock } from 'lucide-react';
-import { FuelingTransactionDto } from '@/types/api';
-
-const SHIFT_PRESETS = [
-  { name: 'Manana', start: 4, end: 12 },
-  { name: 'Tarde', start: 12, end: 20 },
-  { name: 'Noche', start: 20, end: 4 },
-];
-
-const WEEKDAYS = [
-  { key: 1, short: 'L', name: 'Lunes' },
-  { key: 2, short: 'M', name: 'Martes' },
-  { key: 3, short: 'X', name: 'Miercoles' },
-  { key: 4, short: 'J', name: 'Jueves' },
-  { key: 5, short: 'V', name: 'Viernes' },
-  { key: 6, short: 'S', name: 'Sabado' },
-  { key: 0, short: 'D', name: 'Domingo' },
-];
+import { Trophy, Truck, Car, Bike, Clock, ArrowUpDown, ArrowUp, ArrowDown, Calendar, Search } from 'lucide-react';
+import {
+  SHIFT_PRESETS,
+  WEEKDAYS,
+  getToday,
+  isInHourRange,
+  classifyVehicle,
+  formatCurrency,
+  padH,
+} from '@/lib/historial-utils';
 
 interface AttendantRow {
   name: string;
@@ -40,57 +32,48 @@ interface AttendantRow {
   totalTransactions: number;
   totalVolume: number;
   totalAmount: number;
+  avgVolume: number;
+  avgAmount: number;
   trucks: number;
   cars: number;
   motorcycles: number;
 }
 
-function classifyVehicle(fuelCode: string | null, liters: number): 'truck' | 'car' | 'motorcycle' {
-  const isDiesel = fuelCode === '10';
-  if (isDiesel && liters > 50) return 'truck';
-  if (liters >= 10) return 'car';
-  return 'motorcycle';
-}
-
-function isInHourRange(hour: number, start: number, end: number): boolean {
-  if (start <= end) {
-    return hour >= start && hour < end;
-  }
-  return hour >= start || hour < end;
-}
-
-function padH(h: number) {
-  return String(h).padStart(2, '0');
-}
+type SortField = 'totalTransactions' | 'totalVolume' | 'totalAmount' | 'avgVolume' | 'avgAmount';
+type SortDirection = 'asc' | 'desc';
 
 export function AttendantPerformanceReport() {
-  const today = (() => {
-    const d = new Date();
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
-  })();
+  const today = getToday();
 
+  // Own date range — independent from the page filters
   const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);
-  const [hourStart, setHourStart] = useState(4);
-  const [hourEnd, setHourEnd] = useState(12);
+  const [searchFrom, setSearchFrom] = useState(today);
+  const [searchTo, setSearchTo] = useState(today);
+
+  const [hourStart, setHourStart] = useState(5);
+  const [hourEnd, setHourEnd] = useState(13);
   const [selectedDays, setSelectedDays] = useState<Set<number>>(new Set([0, 1, 2, 3, 4, 5, 6]));
-  const [generated, setGenerated] = useState(false);
+  const [sortField, setSortField] = useState<SortField>('totalTransactions');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
   const { data: transactions, isLoading, refetch } = useQuery({
-    queryKey: ['attendant-report', fromDate, toDate],
+    queryKey: ['attendant-report', searchFrom, searchTo],
     queryFn: () => fuelingApi.getTransactions(
-      `${fromDate}T00:00:00`,
-      `${toDate}T23:59:59`
+      `${searchFrom}T00:00:00`,
+      `${searchTo}T23:59:59`
     ),
     enabled: false,
   });
 
+  const [generated, setGenerated] = useState(false);
+
   const handleGenerate = () => {
+    setSearchFrom(fromDate);
+    setSearchTo(toDate);
     setGenerated(true);
-    refetch();
+    // Small delay to ensure queryKey updates before refetch
+    setTimeout(() => refetch(), 0);
   };
 
   const applyPreset = (preset: typeof SHIFT_PRESETS[number]) => {
@@ -111,17 +94,27 @@ export function AttendantPerformanceReport() {
   const selectWeekend = () => setSelectedDays(new Set([0, 6]));
   const selectAll = () => setSelectedDays(new Set([0, 1, 2, 3, 4, 5, 6]));
 
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === 'desc' ? 'asc' : 'desc'));
+    } else {
+      setSortField(field);
+      setSortDirection('desc');
+    }
+  };
+
   const ranking = useMemo((): AttendantRow[] => {
-    if (!transactions) return [];
+    if (!transactions || transactions.length === 0) return [];
 
     const filtered = transactions.filter((t) => {
+      if (!t.attendantName) return false;
       const d = new Date(t.transactionDate);
       const hour = d.getHours();
-      const dayOfWeek = d.getDay(); // 0=Sun, 6=Sat
+      const dayOfWeek = d.getDay();
       return isInHourRange(hour, hourStart, hourEnd) && selectedDays.has(dayOfWeek);
     });
 
-    const map = new Map<string, AttendantRow>();
+    const map = new Map<string, Omit<AttendantRow, 'avgVolume' | 'avgAmount'>>();
 
     for (const t of filtered) {
       const key = t.attendantName || 'Sin asignar';
@@ -150,21 +143,32 @@ export function AttendantPerformanceReport() {
       else row.motorcycles++;
     }
 
-    return Array.from(map.values()).sort(
-      (a, b) => b.totalTransactions - a.totalTransactions
-    );
-  }, [transactions, hourStart, hourEnd, selectedDays]);
+    return Array.from(map.values())
+      .map((row) => ({
+        ...row,
+        avgVolume: row.totalTransactions > 0 ? row.totalVolume / row.totalTransactions : 0,
+        avgAmount: row.totalTransactions > 0 ? row.totalAmount / row.totalTransactions : 0,
+      }))
+      .sort((a, b) => {
+        const mult = sortDirection === 'desc' ? -1 : 1;
+        return (a[sortField] - b[sortField]) * mult;
+      });
+  }, [transactions, hourStart, hourEnd, selectedDays, sortField, sortDirection]);
 
   const totalFiltered = ranking.reduce((s, r) => s + r.totalTransactions, 0);
-
-  const formatCurrency = (value: number) =>
-    value.toLocaleString('es-CR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
   const getSelectedDaysLabel = () => {
     if (selectedDays.size === 7) return 'Todos';
     if (selectedDays.size === 5 && !selectedDays.has(0) && !selectedDays.has(6)) return 'L-V';
     if (selectedDays.size === 2 && selectedDays.has(0) && selectedDays.has(6)) return 'Fin de semana';
     return WEEKDAYS.filter((w) => selectedDays.has(w.key)).map((w) => w.short).join(', ');
+  };
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />;
+    return sortDirection === 'desc'
+      ? <ArrowDown className="h-3 w-3 ml-1 text-amber-600" />
+      : <ArrowUp className="h-3 w-3 ml-1 text-amber-600" />;
   };
 
   return (
@@ -176,55 +180,71 @@ export function AttendantPerformanceReport() {
         </div>
       </CardHeader>
       <CardContent className="pt-6 space-y-4">
-        {/* Row 1: Date range */}
-        <div className="grid gap-4 md:grid-cols-4">
+        {/* Row 1: Date range + Generate */}
+        <div className="grid gap-4 md:grid-cols-[1fr_1fr_auto]">
           <div>
-            <Label className="text-sm font-semibold text-gray-700">Desde</Label>
+            <Label className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+              <Calendar className="h-3.5 w-3.5 text-amber-600" /> Desde
+            </Label>
             <Input
               type="date"
               value={fromDate}
-              onChange={(e) => { setFromDate(e.target.value); setGenerated(false); }}
+              onChange={(e) => setFromDate(e.target.value)}
               className="mt-1 border-2"
             />
           </div>
           <div>
-            <Label className="text-sm font-semibold text-gray-700">Hasta</Label>
+            <Label className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+              <Calendar className="h-3.5 w-3.5 text-amber-600" /> Hasta
+            </Label>
             <Input
               type="date"
               value={toDate}
-              onChange={(e) => { setToDate(e.target.value); setGenerated(false); }}
+              onChange={(e) => setToDate(e.target.value)}
               className="mt-1 border-2"
             />
           </div>
-          <div className="md:col-span-2">
-            <Label className="text-sm font-semibold text-gray-700">Dias de la semana</Label>
-            <div className="mt-1 flex items-center gap-1">
-              {WEEKDAYS.map((w) => (
-                <button
-                  key={w.key}
-                  onClick={() => toggleDay(w.key)}
-                  title={w.name}
-                  className={`w-9 h-9 rounded-full text-sm font-bold transition-all ${
-                    selectedDays.has(w.key)
-                      ? w.key === 0 || w.key === 6
-                        ? 'bg-orange-500 text-white shadow-md'
-                        : 'bg-indigo-600 text-white shadow-md'
-                      : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
-                  }`}
-                >
-                  {w.short}
-                </button>
-              ))}
-              <span className="mx-1 text-gray-300">|</span>
-              <button onClick={selectAll} className="text-xs text-indigo-600 hover:underline font-medium px-1">Todos</button>
-              <button onClick={selectWeekdays} className="text-xs text-indigo-600 hover:underline font-medium px-1">L-V</button>
-              <button onClick={selectWeekend} className="text-xs text-orange-600 hover:underline font-medium px-1">S-D</button>
-            </div>
+          <div className="flex items-end">
+            <Button
+              onClick={handleGenerate}
+              disabled={isLoading || selectedDays.size === 0}
+              className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-semibold shadow-lg"
+            >
+              <Search className="h-4 w-4 mr-2" />
+              {isLoading ? 'Cargando...' : 'Generar'}
+            </Button>
           </div>
         </div>
 
-        {/* Row 2: Hour range + shift presets + generate */}
-        <div className="grid gap-4 md:grid-cols-4">
+        {/* Row 2: Weekday filter */}
+        <div>
+          <Label className="text-sm font-semibold text-gray-700">Días de la semana</Label>
+          <div className="mt-1 flex items-center gap-1">
+            {WEEKDAYS.map((w) => (
+              <button
+                key={w.key}
+                onClick={() => toggleDay(w.key)}
+                title={w.name}
+                className={`w-9 h-9 rounded-full text-sm font-bold transition-all ${
+                  selectedDays.has(w.key)
+                    ? w.key === 0 || w.key === 6
+                      ? 'bg-orange-500 text-white shadow-md'
+                      : 'bg-indigo-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                }`}
+              >
+                {w.short}
+              </button>
+            ))}
+            <span className="mx-1 text-gray-300">|</span>
+            <button onClick={selectAll} className="text-xs text-indigo-600 hover:underline font-medium px-1">Todos</button>
+            <button onClick={selectWeekdays} className="text-xs text-indigo-600 hover:underline font-medium px-1">L-V</button>
+            <button onClick={selectWeekend} className="text-xs text-orange-600 hover:underline font-medium px-1">S-D</button>
+          </div>
+        </div>
+
+        {/* Row 3: Hour range + shift presets */}
+        <div className="grid gap-4 md:grid-cols-3">
           <div>
             <Label className="text-sm font-semibold text-gray-700 flex items-center gap-1">
               <Clock className="h-3.5 w-3.5" /> Hora Inicio
@@ -254,7 +274,7 @@ export function AttendantPerformanceReport() {
             />
           </div>
           <div>
-            <Label className="text-sm font-semibold text-gray-700">Turno rapido</Label>
+            <Label className="text-sm font-semibold text-gray-700">Turno rápido</Label>
             <div className="mt-1 flex gap-1">
               {SHIFT_PRESETS.map((p) => (
                 <Button
@@ -273,15 +293,6 @@ export function AttendantPerformanceReport() {
               ))}
             </div>
           </div>
-          <div className="flex items-end">
-            <Button
-              onClick={handleGenerate}
-              disabled={isLoading || selectedDays.size === 0}
-              className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-semibold shadow-lg"
-            >
-              {isLoading ? 'Cargando...' : 'Generar'}
-            </Button>
-          </div>
         </div>
 
         {/* Results */}
@@ -290,7 +301,7 @@ export function AttendantPerformanceReport() {
             <div className="flex items-center justify-between px-1 pt-2">
               <span className="text-sm text-gray-500">
                 Horario: <strong>{padH(hourStart)}:00 - {padH(hourEnd)}:00</strong>
-                {' '}· Dias: <strong>{getSelectedDaysLabel()}</strong>
+                {' '}· Días: <strong>{getSelectedDaysLabel()}</strong>
                 {' '}· {totalFiltered} despachos
               </span>
             </div>
@@ -306,17 +317,44 @@ export function AttendantPerformanceReport() {
                     <TableRow className="bg-gray-50">
                       <TableHead className="font-bold text-gray-700 w-12 text-center">#</TableHead>
                       <TableHead className="font-bold text-gray-700">Frentista</TableHead>
-                      <TableHead className="font-bold text-gray-700 text-center">Despachos</TableHead>
-                      <TableHead className="font-bold text-gray-700 text-right">Litros</TableHead>
-                      <TableHead className="font-bold text-gray-700 text-right">Monto</TableHead>
-                      <TableHead className="font-bold text-gray-700 text-center">
-                        <span className="inline-flex items-center gap-1"><Truck className="h-4 w-4" /> Camiones</span>
+                      <TableHead
+                        className="font-bold text-gray-700 text-center cursor-pointer hover:text-amber-600 select-none"
+                        onClick={() => handleSort('totalTransactions')}
+                      >
+                        <span className="inline-flex items-center">Despachos <SortIcon field="totalTransactions" /></span>
+                      </TableHead>
+                      <TableHead
+                        className="font-bold text-gray-700 text-right cursor-pointer hover:text-amber-600 select-none"
+                        onClick={() => handleSort('totalVolume')}
+                      >
+                        <span className="inline-flex items-center">Litros <SortIcon field="totalVolume" /></span>
+                      </TableHead>
+                      <TableHead
+                        className="font-bold text-gray-700 text-right cursor-pointer hover:text-amber-600 select-none"
+                        onClick={() => handleSort('totalAmount')}
+                      >
+                        <span className="inline-flex items-center">Monto <SortIcon field="totalAmount" /></span>
+                      </TableHead>
+                      <TableHead
+                        className="font-bold text-gray-700 text-right cursor-pointer hover:text-amber-600 select-none"
+                        onClick={() => handleSort('avgVolume')}
+                      >
+                        <span className="inline-flex items-center">Prom. L <SortIcon field="avgVolume" /></span>
+                      </TableHead>
+                      <TableHead
+                        className="font-bold text-gray-700 text-right cursor-pointer hover:text-amber-600 select-none"
+                        onClick={() => handleSort('avgAmount')}
+                      >
+                        <span className="inline-flex items-center">Prom. ₡ <SortIcon field="avgAmount" /></span>
                       </TableHead>
                       <TableHead className="font-bold text-gray-700 text-center">
-                        <span className="inline-flex items-center gap-1"><Car className="h-4 w-4" /> Autos</span>
+                        <span className="inline-flex items-center gap-1"><Truck className="h-4 w-4" /></span>
                       </TableHead>
                       <TableHead className="font-bold text-gray-700 text-center">
-                        <span className="inline-flex items-center gap-1"><Bike className="h-4 w-4" /> Motos</span>
+                        <span className="inline-flex items-center gap-1"><Car className="h-4 w-4" /></span>
+                      </TableHead>
+                      <TableHead className="font-bold text-gray-700 text-center">
+                        <span className="inline-flex items-center gap-1"><Bike className="h-4 w-4" /></span>
                       </TableHead>
                     </TableRow>
                   </TableHeader>
@@ -356,6 +394,12 @@ export function AttendantPerformanceReport() {
                             ₡{formatCurrency(row.totalAmount)}
                           </span>
                         </TableCell>
+                        <TableCell className="text-right text-gray-600">
+                          {row.avgVolume.toFixed(1)} <span className="text-xs text-gray-400">L</span>
+                        </TableCell>
+                        <TableCell className="text-right text-gray-600">
+                          ₡{formatCurrency(row.avgAmount)}
+                        </TableCell>
                         <TableCell className="text-center font-medium text-blue-700">{row.trucks}</TableCell>
                         <TableCell className="text-center font-medium text-gray-700">{row.cars}</TableCell>
                         <TableCell className="text-center font-medium text-orange-600">{row.motorcycles}</TableCell>
@@ -368,8 +412,8 @@ export function AttendantPerformanceReport() {
 
             {/* Legend */}
             <div className="mt-3 flex flex-wrap gap-4 text-xs text-gray-400 px-1">
-              <span><Truck className="inline h-3 w-3" /> Camion: Diesel + &gt;50 L</span>
-              <span><Car className="inline h-3 w-3" /> Auto: &ge;10 L (no camion)</span>
+              <span><Truck className="inline h-3 w-3" /> Camión: Diesel + &gt;50 L</span>
+              <span><Car className="inline h-3 w-3" /> Auto: &ge;10 L (no camión)</span>
               <span><Bike className="inline h-3 w-3" /> Moto: &lt;10 L</span>
             </div>
           </>

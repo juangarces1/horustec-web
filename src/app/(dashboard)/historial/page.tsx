@@ -18,7 +18,7 @@ import { AttendantPerformanceReport } from '@/components/historial/attendant-per
 import { HourlyTrafficChart } from '@/components/historial/hourly-traffic-chart';
 import { ProductTrendChart } from '@/components/historial/product-trend-chart';
 import { WeekdayTrafficChart } from '@/components/historial/weekday-traffic-chart';
-import { ChevronDown, ChevronUp, BarChart3, Calendar, Clock, Search, Fuel, MapPin } from 'lucide-react';
+import { ChevronDown, ChevronUp, Calendar, Clock, Search, Fuel, MapPin, Trophy, Activity, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -28,23 +28,13 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import Link from 'next/link';
+import { FUEL_NAMES, getToday, formatCurrency, formatDate } from '@/lib/historial-utils';
 
-const FUEL_NAMES: Record<string, string> = {
-  '01': 'Regular',
-  '02': 'Exonerado',
-  '03': 'Super',
-  '10': 'Diesel',
-};
+type TableSortField = 'registerNumber' | 'transactionDate' | 'nozzleCode' | 'attendantName' | 'totalLiters' | 'unitPrice' | 'totalCash';
+type SortDirection = 'asc' | 'desc';
 
 function HistorialContent() {
-  // Default: today (local timezone)
-  const today = (() => {
-    const d = new Date();
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
-  })();
+  const today = getToday();
   const [fromDate, setFromDate] = useState(today);
   const [fromTime, setFromTime] = useState('00:00');
   const [toDate, setToDate] = useState(today);
@@ -52,7 +42,29 @@ function HistorialContent() {
   const [zoneFilter, setZoneFilter] = useState('');
   const [productFilter, setProductFilter] = useState('');
 
-  const [chartsOpen, setChartsOpen] = useState(false);
+  const [performanceOpen, setPerformanceOpen] = useState(false);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
+
+  // Sorting
+  const [sortField, setSortField] = useState<TableSortField>('registerNumber');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+  const handleSort = (field: TableSortField) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === 'desc' ? 'asc' : 'desc'));
+    } else {
+      setSortField(field);
+      setSortDirection('desc');
+    }
+    setCurrentPage(1);
+  };
+
+  const SortIcon = ({ field }: { field: TableSortField }) => {
+    if (sortField !== field) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />;
+    return sortDirection === 'desc'
+      ? <ArrowDown className="h-3 w-3 ml-1 text-indigo-600" />
+      : <ArrowUp className="h-3 w-3 ml-1 text-indigo-600" />;
+  };
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -77,8 +89,32 @@ function HistorialContent() {
     } else if (zoneFilter === '2') {
       result = result.filter((t) => (t.nozzleNumber ?? 0) > 12);
     }
-    return result;
-  }, [transactions, productFilter, zoneFilter]);
+
+    const mult = sortDirection === 'desc' ? -1 : 1;
+    return [...result].sort((a, b) => {
+      switch (sortField) {
+        case 'registerNumber':
+          return (a.registerNumber - b.registerNumber) * mult;
+        case 'transactionDate':
+          return (new Date(a.transactionDate).getTime() - new Date(b.transactionDate).getTime()) * mult;
+        case 'nozzleCode': {
+          const aVal = a.nozzleCode || a.nozzleNumber?.toString() || '';
+          const bVal = b.nozzleCode || b.nozzleNumber?.toString() || '';
+          return aVal.localeCompare(bVal) * mult;
+        }
+        case 'attendantName':
+          return (a.attendantName || '').localeCompare(b.attendantName || '') * mult;
+        case 'totalLiters':
+          return (a.totalLiters - b.totalLiters) * mult;
+        case 'unitPrice':
+          return (a.unitPrice - b.unitPrice) * mult;
+        case 'totalCash':
+          return (a.totalCash - b.totalCash) * mult;
+        default:
+          return 0;
+      }
+    });
+  }, [transactions, productFilter, zoneFilter, sortField, sortDirection]);
 
   // Pagination logic
   const paginatedData = useMemo(() => {
@@ -98,24 +134,6 @@ function HistorialContent() {
     setProductFilter('');
     setZoneFilter('');
     void refetch();
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const dd = String(date.getDate()).padStart(2, '0');
-    const mm = String(date.getMonth() + 1).padStart(2, '0');
-    const yyyy = date.getFullYear();
-    const hh = String(date.getHours()).padStart(2, '0');
-    const min = String(date.getMinutes()).padStart(2, '0');
-    const ss = String(date.getSeconds()).padStart(2, '0');
-    return `${dd}/${mm}/${yyyy} ${hh}:${min}:${ss}`;
-  };
-
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString('es-ES', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
   };
 
   const totalCash = filteredTransactions.reduce((sum, t) => sum + t.totalCash, 0);
@@ -144,7 +162,7 @@ function HistorialContent() {
           <CardHeader className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-t-lg py-4">
             <CardTitle className="text-xl flex items-center gap-2">
               <Search className="h-5 w-5" />
-              Filtros de Busqueda
+              Filtros de Búsqueda
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-6 pb-5">
@@ -260,14 +278,14 @@ function HistorialContent() {
             <Card className="border-0 shadow-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div>
               <CardContent className="pt-6 relative">
-                <div className="text-sm font-semibold opacity-90 mb-2">📊 Total Transacciones</div>
+                <div className="text-sm font-semibold opacity-90 mb-2">Total Transacciones</div>
                 <div className="text-5xl font-bold">{filteredTransactions.length}</div>
               </CardContent>
             </Card>
             <Card className="border-0 shadow-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div>
               <CardContent className="pt-6 relative">
-                <div className="text-sm font-semibold opacity-90 mb-2">⛽ Total Litros</div>
+                <div className="text-sm font-semibold opacity-90 mb-2">Total Litros</div>
                 <div className="text-5xl font-bold">{totalLiters.toFixed(2)}</div>
                 <div className="text-sm opacity-75 mt-1">Litros</div>
               </CardContent>
@@ -275,8 +293,8 @@ function HistorialContent() {
             <Card className="border-0 shadow-xl bg-gradient-to-br from-purple-500 to-pink-600 text-white overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div>
               <CardContent className="pt-6 relative">
-                <div className="text-sm font-semibold opacity-90 mb-2">💰 Total Dinero</div>
-                <div className="text-5xl font-bold">₡{formatCurrency(totalCash)}</div>
+                <div className="text-sm font-semibold opacity-90 mb-2">Total Dinero</div>
+                <div className="text-5xl font-bold">₡{formatCurrency(totalCash, 2)}</div>
               </CardContent>
             </Card>
           </div>
@@ -285,7 +303,7 @@ function HistorialContent() {
         {/* Table Card */}
         <Card className="border-0 shadow-2xl bg-white/90 backdrop-blur-sm">
           <CardHeader className="bg-gradient-to-r from-gray-800 to-gray-900 text-white rounded-t-lg">
-            <CardTitle className="text-xl">📋 Registro de Transacciones</CardTitle>
+            <CardTitle className="text-xl">Registro de Transacciones</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             {isLoading && (
@@ -296,7 +314,6 @@ function HistorialContent() {
             )}
             {error && (
               <div className="text-center py-16">
-                <div className="text-5xl mb-4">⚠️</div>
                 <p className="text-red-600 font-medium">
                   Error al cargar transacciones
                 </p>
@@ -304,7 +321,6 @@ function HistorialContent() {
             )}
             {transactions && filteredTransactions.length === 0 && (
               <div className="text-center py-16">
-                <div className="text-6xl mb-4">📭</div>
                 <p className="text-gray-600 text-lg">
                   No se encontraron transacciones en el rango seleccionado
                 </p>
@@ -316,14 +332,49 @@ function HistorialContent() {
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-gray-50 border-b-2">
-                        <TableHead className="font-bold text-gray-700">Registro</TableHead>
-                        <TableHead className="font-bold text-gray-700">Fecha/Hora</TableHead>
-                        <TableHead className="font-bold text-gray-700">Surtidor</TableHead>
+                        <TableHead
+                          className="font-bold text-gray-700 cursor-pointer hover:text-indigo-600 select-none"
+                          onClick={() => handleSort('registerNumber')}
+                        >
+                          <span className="inline-flex items-center">Registro <SortIcon field="registerNumber" /></span>
+                        </TableHead>
+                        <TableHead
+                          className="font-bold text-gray-700 cursor-pointer hover:text-indigo-600 select-none"
+                          onClick={() => handleSort('transactionDate')}
+                        >
+                          <span className="inline-flex items-center">Fecha/Hora <SortIcon field="transactionDate" /></span>
+                        </TableHead>
+                        <TableHead
+                          className="font-bold text-gray-700 cursor-pointer hover:text-indigo-600 select-none"
+                          onClick={() => handleSort('nozzleCode')}
+                        >
+                          <span className="inline-flex items-center">Surtidor <SortIcon field="nozzleCode" /></span>
+                        </TableHead>
                         <TableHead className="font-bold text-gray-700">Combustible</TableHead>
-                        <TableHead className="font-bold text-gray-700">Frentista</TableHead>
-                        <TableHead className="font-bold text-gray-700 text-right">Litros</TableHead>
-                        <TableHead className="font-bold text-gray-700 text-right">Precio Unit.</TableHead>
-                        <TableHead className="font-bold text-gray-700 text-right">Total</TableHead>
+                        <TableHead
+                          className="font-bold text-gray-700 cursor-pointer hover:text-indigo-600 select-none"
+                          onClick={() => handleSort('attendantName')}
+                        >
+                          <span className="inline-flex items-center">Frentista <SortIcon field="attendantName" /></span>
+                        </TableHead>
+                        <TableHead
+                          className="font-bold text-gray-700 text-right cursor-pointer hover:text-indigo-600 select-none"
+                          onClick={() => handleSort('totalLiters')}
+                        >
+                          <span className="inline-flex items-center">Litros <SortIcon field="totalLiters" /></span>
+                        </TableHead>
+                        <TableHead
+                          className="font-bold text-gray-700 text-right cursor-pointer hover:text-indigo-600 select-none"
+                          onClick={() => handleSort('unitPrice')}
+                        >
+                          <span className="inline-flex items-center">Precio Unit. <SortIcon field="unitPrice" /></span>
+                        </TableHead>
+                        <TableHead
+                          className="font-bold text-gray-700 text-right cursor-pointer hover:text-indigo-600 select-none"
+                          onClick={() => handleSort('totalCash')}
+                        >
+                          <span className="inline-flex items-center">Total <SortIcon field="totalCash" /></span>
+                        </TableHead>
                         <TableHead className="font-bold text-gray-700 text-center">Estado</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -365,21 +416,21 @@ function HistorialContent() {
                             {transaction.totalLiters.toFixed(2)} <span className="text-sm text-gray-500">L</span>
                           </TableCell>
                           <TableCell className="text-right text-gray-700">
-                            ₡{formatCurrency(transaction.unitPrice)}
+                            ₡{formatCurrency(transaction.unitPrice, 2)}
                           </TableCell>
                           <TableCell className="text-right">
                             <span className="text-lg font-bold text-emerald-600">
-                              ₡{formatCurrency(transaction.totalCash)}
+                              ₡{formatCurrency(transaction.totalCash, 2)}
                             </span>
                           </TableCell>
                           <TableCell className="text-center">
                             {transaction.integrityOk && transaction.checksumOk ? (
                               <span className="inline-flex items-center px-3 py-1 rounded-full bg-green-100 text-green-800 font-semibold">
-                                ✓ OK
+                                OK
                               </span>
                             ) : (
                               <span className="inline-flex items-center px-3 py-1 rounded-full bg-red-100 text-red-800 font-semibold">
-                                ✗ Error
+                                Error
                               </span>
                             )}
                           </TableCell>
@@ -409,13 +460,11 @@ function HistorialContent() {
                     <div className="flex items-center gap-1">
                       {Array.from({ length: paginatedData.totalPages }, (_, i) => i + 1)
                         .filter(page => {
-                          // Show first, last, current, and pages around current
                           return page === 1 ||
                                  page === paginatedData.totalPages ||
                                  Math.abs(page - currentPage) <= 1;
                         })
                         .map((page, idx, arr) => {
-                          // Add ellipsis if needed
                           const showEllipsis = idx > 0 && page - arr[idx - 1] > 1;
                           return (
                             <div key={page} className="flex items-center gap-1">
@@ -451,28 +500,45 @@ function HistorialContent() {
           </CardContent>
         </Card>
 
-        {/* Charts Section */}
+        {/* Sections below only show when there are transactions */}
         {transactions && transactions.length > 0 && (
-          <div className="mt-8">
-            <button
-              onClick={() => setChartsOpen(!chartsOpen)}
-              className="flex items-center gap-2 mb-4 text-lg font-semibold text-slate-700 hover:text-indigo-600 transition-colors"
-            >
-              <BarChart3 className="h-5 w-5" />
-              Graficas de Rendimiento
-              {chartsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </button>
-            {chartsOpen && (
-              <div className="space-y-6">
+          <>
+            {/* Section 1: Rendimiento de Pisteros */}
+            <div className="mt-8">
+              <button
+                onClick={() => setPerformanceOpen(!performanceOpen)}
+                className="flex items-center gap-2 mb-4 text-lg font-semibold text-slate-700 hover:text-amber-600 transition-colors"
+              >
+                <Trophy className="h-5 w-5" />
+                Rendimiento de Pisteros
+                {performanceOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </button>
+              {performanceOpen && (
                 <AttendantPerformanceReport />
-                <div className="grid gap-6 md:grid-cols-2">
-                  <HourlyTrafficChart transactions={transactions} />
-                  <WeekdayTrafficChart transactions={transactions} />
+              )}
+            </div>
+
+            {/* Section 2: Análisis de Estación */}
+            <div className="mt-8">
+              <button
+                onClick={() => setAnalyticsOpen(!analyticsOpen)}
+                className="flex items-center gap-2 mb-4 text-lg font-semibold text-slate-700 hover:text-indigo-600 transition-colors"
+              >
+                <Activity className="h-5 w-5" />
+                Análisis de Estación
+                {analyticsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </button>
+              {analyticsOpen && (
+                <div className="space-y-6">
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <HourlyTrafficChart transactions={transactions} />
+                    <WeekdayTrafficChart transactions={transactions} />
+                  </div>
+                  <ProductTrendChart transactions={transactions} />
                 </div>
-                <ProductTrendChart transactions={transactions} />
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          </>
         )}
       </div>
     </div>

@@ -14,16 +14,15 @@ import {
 } from 'recharts';
 import { Clock } from 'lucide-react';
 import { FuelingTransactionDto } from '@/types/api';
-
-const SHIFTS = [
-  { name: 'Turno 1', start: 5, end: 13, color: '#fef3c7' },
-  { name: 'Turno 2', start: 13, end: 21, color: '#e0e7ff' },
-  { name: 'Turno 3a', start: 21, end: 24, color: '#d1fae5' },
-  { name: 'Turno 3b', start: 0, end: 5, color: '#d1fae5' },
-];
+import { SHIFT_BANDS } from '@/lib/historial-utils';
 
 interface HourlyTrafficChartProps {
   transactions: FuelingTransactionDto[];
+}
+
+interface TooltipPayloadItem {
+  payload: { hour: string };
+  value: number;
 }
 
 export function HourlyTrafficChart({ transactions }: HourlyTrafficChartProps) {
@@ -41,7 +40,7 @@ export function HourlyTrafficChart({ transactions }: HourlyTrafficChartProps) {
     }));
   }, [transactions]);
 
-  const CustomTooltip = ({ active, payload }: any) => {
+  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: TooltipPayloadItem[] }) => {
     if (active && payload && payload.length) {
       const hour = payload[0].payload.hour;
       return (
@@ -68,31 +67,26 @@ export function HourlyTrafficChart({ transactions }: HourlyTrafficChartProps) {
           </CardTitle>
         </div>
         <div className="flex gap-4 text-xs text-slate-500 mt-1">
-          <span className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded" style={{ backgroundColor: '#fef3c7' }} /> Turno 1 (5-13h)
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded" style={{ backgroundColor: '#e0e7ff' }} /> Turno 2 (13-21h)
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded" style={{ backgroundColor: '#d1fae5' }} /> Turno 3 (21-5h)
-          </span>
+          {SHIFT_BANDS.map((shift) => (
+            <span key={shift.name} className="flex items-center gap-1">
+              <span className="w-3 h-3 rounded" style={{ backgroundColor: shift.color }} /> {shift.name}
+            </span>
+          ))}
         </div>
       </CardHeader>
       <CardContent>
         {!hasData ? (
           <div className="flex items-center justify-center h-64 text-slate-500">
-            Sin datos de trafico en este periodo
+            Sin datos de tráfico en este periodo
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              {/* Shift background bands */}
-              <ReferenceArea x1="00:00" x2="04:00" fill="#d1fae5" fillOpacity={0.4} />
-              <ReferenceArea x1="05:00" x2="12:00" fill="#fef3c7" fillOpacity={0.4} />
-              <ReferenceArea x1="13:00" x2="20:00" fill="#e0e7ff" fillOpacity={0.4} />
-              <ReferenceArea x1="21:00" x2="23:00" fill="#d1fae5" fillOpacity={0.4} />
+              <ReferenceArea x1="00:00" x2="03:00" fill={SHIFT_BANDS[2].color} fillOpacity={0.4} />
+              <ReferenceArea x1="04:00" x2="11:00" fill={SHIFT_BANDS[0].color} fillOpacity={0.4} />
+              <ReferenceArea x1="12:00" x2="19:00" fill={SHIFT_BANDS[1].color} fillOpacity={0.4} />
+              <ReferenceArea x1="20:00" x2="23:00" fill={SHIFT_BANDS[2].color} fillOpacity={0.4} />
               <XAxis
                 dataKey="hour"
                 stroke="#64748b"

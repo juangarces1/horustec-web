@@ -17,17 +17,22 @@ import { FuelingTransactionDto } from '@/types/api';
 
 const DAY_NAMES = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const DAY_COLORS = [
-  '#ef4444', // Dom - rojo (dia bajo)
+  '#ef4444', // Dom - rojo
   '#6366f1', // Lun
   '#6366f1', // Mar
   '#6366f1', // Mié
   '#6366f1', // Jue
   '#6366f1', // Vie
-  '#f59e0b', // Sáb - amber (dia especial)
+  '#f59e0b', // Sáb - amber
 ];
 
 interface WeekdayTrafficChartProps {
   transactions: FuelingTransactionDto[];
+}
+
+interface TooltipPayloadItem {
+  payload: { dia: string };
+  value: number;
 }
 
 export function WeekdayTrafficChart({ transactions }: WeekdayTrafficChartProps) {
@@ -35,11 +40,10 @@ export function WeekdayTrafficChart({ transactions }: WeekdayTrafficChartProps) 
     const counts = new Array(7).fill(0);
 
     for (const t of transactions) {
-      const day = new Date(t.transactionDate).getDay(); // 0=Dom, 6=Sáb
+      const day = new Date(t.transactionDate).getDay();
       counts[day]++;
     }
 
-    // Reorder: Lun-Dom (start week on Monday)
     const mondayFirst = [1, 2, 3, 4, 5, 6, 0];
     return mondayFirst.map((dayIdx) => ({
       dia: DAY_NAMES[dayIdx],
@@ -50,7 +54,7 @@ export function WeekdayTrafficChart({ transactions }: WeekdayTrafficChartProps) 
 
   const hasData = chartData.some((d) => d.transacciones > 0);
 
-  const CustomTooltip = ({ active, payload }: any) => {
+  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: TooltipPayloadItem[] }) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-white p-3 rounded-lg shadow-lg border border-slate-200">

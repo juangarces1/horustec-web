@@ -28,9 +28,15 @@ interface ProductTrendChartProps {
   transactions: FuelingTransactionDto[];
 }
 
+interface TooltipPayloadItem {
+  dataKey: string;
+  name: string;
+  value: number;
+  color: string;
+}
+
 export function ProductTrendChart({ transactions }: ProductTrendChartProps) {
   const { chartData, products } = useMemo(() => {
-    // Group by date and product
     const dateMap = new Map<string, Map<string, number>>();
     const productSet = new Set<string>();
 
@@ -55,7 +61,7 @@ export function ProductTrendChart({ transactions }: ProductTrendChartProps) {
       .map(([sortKey, dayMap]) => {
         const parts = sortKey.split('-');
         const displayDate = `${parts[2]}/${parts[1]}`;
-        const entry: Record<string, any> = { date: displayDate };
+        const entry: Record<string, string | number> = { date: displayDate };
         for (const p of products) {
           entry[p] = parseFloat((dayMap.get(p) || 0).toFixed(2));
         }
@@ -65,12 +71,12 @@ export function ProductTrendChart({ transactions }: ProductTrendChartProps) {
     return { chartData, products };
   }, [transactions]);
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: TooltipPayloadItem[]; label?: string }) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-white p-3 rounded-lg shadow-lg border border-slate-200">
           <p className="text-sm font-semibold text-slate-900 mb-1">Fecha: {label}</p>
-          {payload.map((p: any) => (
+          {payload.map((p) => (
             <p key={p.dataKey} className="text-sm" style={{ color: p.color }}>
               {p.name}: {p.value.toLocaleString('es-CR', { minimumFractionDigits: 2 })} L
             </p>
