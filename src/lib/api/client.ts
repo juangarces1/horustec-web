@@ -1,7 +1,12 @@
 import axios from 'axios';
 
+// Default vacío = paths relativos al origin. Next.js rewrites (ver
+// next.config.ts) proxea /api/* al backend .NET upstream. Así funciona
+// igual en LAN (http://192.168.1.3:3000) e internet (Cloudflare tunnel).
+// Si NEXT_PUBLIC_API_URL está seteado, override (útil para debug contra
+// otro backend).
 const apiClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  baseURL: process.env.NEXT_PUBLIC_API_URL ?? "",
   headers: {
     'Content-Type': 'application/json',
   },

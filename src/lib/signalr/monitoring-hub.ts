@@ -14,8 +14,10 @@ export class MonitoringHub {
       return;
     }
 
+    // Default path relativo — SignalR client resuelve contra el origin.
+    // Next.js rewrites (ver next.config.ts) proxea /hubs/* al backend .NET.
     this.connection = new signalR.HubConnectionBuilder()
-      .withUrl(process.env.NEXT_PUBLIC_SIGNALR_HUB_URL || 'http://localhost:5000/hubs/monitoring', {
+      .withUrl(process.env.NEXT_PUBLIC_SIGNALR_HUB_URL || '/hubs/monitoring', {
         accessTokenFactory: () => {
           if (typeof window !== 'undefined') {
             return localStorage.getItem('token') || '';
