@@ -126,3 +126,57 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Animación de pistola goteando (Abasteciendo Ahora) */
+@keyframes fuel-drip {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(15px);
+    opacity: 0;
+  }
+}
+
+@keyframes fuel-puddle {
+  0%,
+  100% {
+    transform: scaleX(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scaleX(1.25);
+    opacity: 0.9;
+  }
+}
+
+.fuel-drop {
+  animation: fuel-drip 1.2s cubic-bezier(0.4, 0, 1, 1) infinite;
+}
+
+.fuel-drop-delayed {
+  animation-delay: 0.6s;
+}
+
+.fuel-puddle {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: fuel-puddle 1.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fuel-drop,
+  .fuel-puddle {
+    animation: none;
+  }
+  .fuel-drop {
+    opacity: 0;
+  }
+}
