@@ -7,24 +7,28 @@ import { fuelingApi } from '@/lib/api/fueling';
 import { pricesApi } from '@/lib/api/prices';
 import { KPICard } from '@/components/dashboard/kpi-card';
 import { SalesChart } from '@/components/dashboard/sales-chart';
+import { SalesByDayChart, type DaySales } from '@/components/dashboard/sales-by-day-chart';
 import { ActiveFuelings } from '@/components/dashboard/active-fuelings';
 import { ActiveAttendants } from '@/components/dashboard/active-attendants';
 import { TopProducts } from '@/components/dashboard/top-products';
 import { Button } from '@/components/ui/button';
-import { DollarSign, Droplet, Receipt, Activity, RefreshCw } from 'lucide-react';
+import { DollarSign, Droplet, Receipt, Activity, RefreshCw, X } from 'lucide-react';
 import type { FuelingTransactionDto } from '@/types/api';
 
-// Helper function to get date range for last 24 hours
-const getLast24HoursRange = () => {
-  const to = new Date();
-  const from = new Date(to.getTime() - 24 * 60 * 60 * 1000); // 24 hours ago
-  return { from: from.toISOString(), to: to.toISOString() };
-};
+// Clave local YYYY-MM-DD de una fecha
+const dayKeyOf = (d: Date) =>
+  `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
 
-// Helper function to get date range for last week
-const getLastWeekRange = () => {
+// Etiqueta corta "vie 4 jul"
+const dayLabelOf = (d: Date) =>
+  d.toLocaleDateString('es-CR', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/\./g, '');
+
+// Últimos 7 días calendario: desde las 00:00 de hace 6 días hasta ahora
+const getLast7DaysRange = () => {
   const to = new Date();
-  const from = new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000); // 7 days ago
+  const from = new Date(to);
+  from.setDate(from.getDate() - 6);
+  from.setHours(0, 0, 0, 0);
   return { from: from.toISOString(), to: to.toISOString() };
 };
 
@@ -64,37 +68,21 @@ const getSalesChartData = (transactions: FuelingTransactionDto[]) => {
 
 export default function DashboardPage() {
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  // Día seleccionado en la gráfica de barras (null = hoy)
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
-  // Fetch transactions from last 24 hours for KPIs
-  const {
-    data: recentTransactions = [],
-    isLoading: loadingRecent,
-    refetch: refetchRecent,
-  } = useQuery({
-    queryKey: ['transactions-last-24-hours'],
-    queryFn: async () => {
-      const { from, to } = getLast24HoursRange();
-      const data = await fuelingApi.getTransactions(from, to);
-      console.log('📊 Transacciones últimas 24 horas:', data.length, data);
-      return data;
-    },
-    refetchInterval: 30000, // Refetch every 30 seconds
-  });
-
-  // Fetch transactions from last week for chart
+  // Fetch transactions from the last 7 calendar days (KPIs + charts)
   const {
     data: chartTransactions = [],
     isLoading: loadingChart,
     refetch: refetchChart,
   } = useQuery({
-    queryKey: ['transactions-last-week'],
+    queryKey: ['transactions-last-7-days'],
     queryFn: async () => {
-      const { from, to } = getLastWeekRange();
-      const data = await fuelingApi.getTransactions(from, to);
-      console.log('📈 Transacciones última semana:', data.length, data.slice(0, 3));
-      return data;
+      const { from, to } = getLast7DaysRange();
+      return fuelingApi.getTransactions(from, to);
     },
-    refetchInterval: 60000, // Refetch every minute
+    refetchInterval: 30000, // Refetch every 30 seconds
   });
 
   // Fetch nozzle statuses
@@ -128,7 +116,6 @@ export default function DashboardPage() {
 
   // Handle manual refresh
   const handleRefresh = () => {
-    refetchRecent();
     refetchChart();
     refetchStatuses();
     refetchVis();
@@ -143,14 +130,48 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // ---- Días y filtrado ----
+  const todayKey = dayKeyOf(new Date());
+  const effectiveDay = selectedDay ?? todayKey;
+
+  // Siempre 7 barras (con ₡0 si no hubo ventas)
+  const salesByDay: DaySales[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    salesByDay.push({ dayKey: dayKeyOf(d), label: dayLabelOf(d), ventas: 0, count: 0 });
+  }
+  const byKey = new Map(salesByDay.map((s) => [s.dayKey, s]));
+  chartTransactions.forEach((tx) => {
+    const entry = byKey.get(dayKeyOf(new Date(tx.transactionDate)));
+    if (entry) {
+      entry.ventas += tx.totalCash;
+      entry.count++;
+    }
+  });
+
+  // Transacciones del día efectivo → KPIs, productos, frentistas, gráfica horaria
+  const selectedTransactions = chartTransactions.filter(
+    (tx) => dayKeyOf(new Date(tx.transactionDate)) === effectiveDay
+  );
+  const isToday = effectiveDay === todayKey;
+  const dayLabel = isToday
+    ? 'Hoy'
+    : byKey.get(effectiveDay)?.label ?? effectiveDay;
+
+  const handleSelectDay = (dayKey: string) => {
+    // Click en el día ya seleccionado (o en hoy) vuelve a "Hoy"
+    setSelectedDay(dayKey === effectiveDay || dayKey === todayKey ? null : dayKey);
+  };
+
   // Calculate metrics
-  const kpis = calculateKPIs(recentTransactions);
+  const kpis = calculateKPIs(selectedTransactions);
   const statusCounts = countByStatus(statuses);
-  const chartData = getSalesChartData(chartTransactions);
+  const chartData = getSalesChartData(selectedTransactions);
 
-  const isLoading = loadingRecent || loadingChart || loadingStatuses;
+  const isLoading = loadingChart || loadingStatuses;
 
-  if (isLoading && recentTransactions.length === 0) {
+  if (isLoading && chartTransactions.length === 0) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
@@ -170,10 +191,20 @@ export default function DashboardPage() {
             Dashboard Ejecutivo
           </h1>
           <p className="mt-2 text-lg text-slate-600">
-            Resumen en tiempo real de operaciones de las últimas 24 horas
+            Resumen de operaciones de los últimos 7 días
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {!isToday && (
+            <button
+              onClick={() => setSelectedDay(null)}
+              className="flex items-center gap-1.5 rounded-full bg-indigo-100 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-200 transition-colors"
+              title="Volver a hoy"
+            >
+              Mostrando: {dayLabel}
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
           <div className="text-sm text-slate-500">
             Actualizado: {lastUpdate.toLocaleTimeString('es-ES')}
           </div>
@@ -184,10 +215,10 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* KPI Cards - Last 24 Hours */}
+      {/* KPI Cards - día seleccionado */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
-          title="Total Ventas (24 horas)"
+          title={`Total Ventas (${dayLabel})`}
           value={kpis.totalSales}
           valuePrefix="₡"
           icon={DollarSign}
@@ -196,7 +227,7 @@ export default function DashboardPage() {
           iconBgClass="bg-green-500/20"
         />
         <KPICard
-          title="Total Litros (24 horas)"
+          title={`Total Litros (${dayLabel})`}
           value={kpis.totalLiters.toFixed(2)}
           valueSuffix=" L"
           icon={Droplet}
@@ -205,7 +236,7 @@ export default function DashboardPage() {
           iconBgClass="bg-blue-500/20"
         />
         <KPICard
-          title="Transacciones (24 horas)"
+          title={`Transacciones (${dayLabel})`}
           value={kpis.count}
           icon={Receipt}
           colorClass="text-purple-700"
@@ -231,15 +262,22 @@ export default function DashboardPage() {
         {/* Right Column */}
         <div className="space-y-6">
           {/* Active Attendants */}
-          <ActiveAttendants transactions={recentTransactions} />
+          <ActiveAttendants transactions={selectedTransactions} />
 
           {/* Top Products */}
-          <TopProducts transactions={recentTransactions} />
+          <TopProducts transactions={selectedTransactions} />
         </div>
       </div>
 
-      {/* Sales Chart - Full Width */}
-      <SalesChart data={chartData} />
+      {/* Sales by day - Full Width, clickeable */}
+      <SalesByDayChart
+        data={salesByDay}
+        selectedDay={effectiveDay}
+        onSelectDay={handleSelectDay}
+      />
+
+      {/* Hourly breakdown of the selected day - Full Width */}
+      <SalesChart data={chartData} title={`Ventas por Hora — ${dayLabel}`} />
 
       {/* Info Banner */}
       <div className="rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 p-6 text-white shadow-lg">
@@ -248,8 +286,9 @@ export default function DashboardPage() {
           <div>
             <h3 className="text-lg font-bold">Actualización Automática</h3>
             <p className="text-sm opacity-90 mt-1">
-              Los KPIs se actualizan cada 30 segundos. Los estados de dispensadores se refrescan cada 5 segundos.
-              La gráfica de ventas muestra la última semana.
+              Los datos cubren los últimos 7 días y se actualizan cada 30 segundos; los estados de
+              dispensadores cada 5 segundos. Haz click en una barra de día para filtrar los KPIs,
+              productos y frentistas de ese día — Abasteciendo Ahora siempre muestra el tiempo real.
             </p>
           </div>
         </div>

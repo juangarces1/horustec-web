@@ -9,9 +9,10 @@ interface SalesChartProps {
     hour: string;
     ventas: number;
   }>;
+  title?: string;
 }
 
-export function SalesChart({ data }: SalesChartProps) {
+export function SalesChart({ data, title = 'Ventas por Hora del Día (Última Semana)' }: SalesChartProps) {
   // Custom tooltip formatter
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
@@ -43,7 +44,7 @@ export function SalesChart({ data }: SalesChartProps) {
         <div className="flex items-center gap-2">
           <TrendingUp className="h-5 w-5 text-indigo-600" />
           <CardTitle className="text-xl font-bold text-slate-900">
-            Ventas por Hora del Día (Última Semana)
+            {title}
           </CardTitle>
         </div>
       </CardHeader>
