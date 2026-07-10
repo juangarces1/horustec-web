@@ -1,4 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { RollingNumber } from '@/components/ui/rolling-number';
+import { NOZZLE_PRODUCTS } from '@/lib/nozzle-products';
 import { VisualizationDto } from '@/types/api';
 import { NozzleStatus } from '@/types/api';
 
@@ -36,48 +38,53 @@ export function ActiveFuelings({ visualizations, attendantsByTag, pricesByProduc
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
-          {activeFuelings.map((fueling) => (
-            <div
-              key={fueling.nozzleCode}
-              className="flex items-center justify-between p-4 bg-orange-50 border-l-4 border-orange-500 rounded-lg hover:bg-orange-100 transition-colors"
-            >
-              <div className="flex items-center space-x-4">
-                <div className="flex flex-col items-center justify-center w-16 h-16 bg-orange-500 text-white rounded-lg">
-                  <div className="text-xs font-medium">Surtidor</div>
-                  <div className="text-2xl font-bold">#{fueling.nozzleCode}</div>
-                </div>
-                <div className="space-y-0.5">
-                  <div className="text-sm text-gray-500">Producto</div>
-                  <div className="font-medium">{fueling.productName || 'Sin especificar'}</div>
-                  {fueling.tagId && attendantsByTag?.get(fueling.tagId.toUpperCase()) && (
-                    <div className="text-sm text-gray-600">
-                      👤 {attendantsByTag.get(fueling.tagId.toUpperCase())}
-                    </div>
-                  )}
-                  {(() => {
-                    const price = fueling.productName
-                      ? pricesByProduct?.get(fueling.productName)
-                      : null;
-                    const liters = price && price > 0
-                      ? (fueling.currentCash * 100) / price
-                      : null;
-                    return liters != null && liters > 0 ? (
-                      <div className="text-sm font-semibold text-orange-700">
-                        🔢 {liters.toFixed(2)} L
+          {activeFuelings.map((fueling) => {
+            // El API puede devolver productName null: usar el mapeo físico manguera→producto
+            const product = fueling.productName || NOZZLE_PRODUCTS[fueling.nozzleCode] || 'Sin especificar';
+            // pricesByProduct usa claves en minúscula
+            const price = pricesByProduct?.get(product.toLowerCase());
+            const liters = price && price > 0
+              ? (fueling.currentCash * 100) / price
+              : null;
+
+            return (
+              <div
+                key={fueling.nozzleCode}
+                className="flex items-center justify-between p-4 bg-orange-50 border-l-4 border-orange-500 rounded-lg hover:bg-orange-100 transition-colors"
+              >
+                <div className="flex items-center space-x-4">
+                  <div className="flex flex-col items-center justify-center w-16 h-16 bg-orange-500 text-white rounded-lg">
+                    <div className="text-xs font-medium">Manguera</div>
+                    <div className="text-2xl font-bold">#{fueling.nozzleCode}</div>
+                  </div>
+                  <div className="space-y-0.5">
+                    <div className="text-sm text-gray-500">Producto</div>
+                    <div className="font-medium">{product}</div>
+                    {fueling.tagId && attendantsByTag?.get(fueling.tagId.toUpperCase()) && (
+                      <div className="text-sm text-gray-600">
+                        👤 {attendantsByTag.get(fueling.tagId.toUpperCase())}
                       </div>
-                    ) : null;
-                  })()}
+                    )}
+                    {liters != null && liters > 0 && (
+                      <div className="text-sm font-semibold text-orange-700">
+                        🔢 <RollingNumber text={liters.toFixed(2)} /> L
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm text-gray-500">Monto actual</div>
+                  <div className="font-mono font-bold text-orange-600">
+                    <span className="text-2xl">₡</span>
+                    <RollingNumber
+                      text={Math.round(fueling.currentCash * 100).toLocaleString('es-ES')}
+                      className="text-3xl"
+                    />
+                  </div>
                 </div>
               </div>
-              <div className="text-right">
-                <div className="text-sm text-gray-500">Monto actual</div>
-                <div className="font-bold text-orange-600">
-                  <span className="text-2xl">₡</span>
-                  <span className="text-3xl">{Math.round(fueling.currentCash * 100).toLocaleString('es-ES')}</span>
-                </div>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </CardContent>
     </Card>
