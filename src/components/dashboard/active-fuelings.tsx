@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Fuel } from 'lucide-react';
+import { DrippingNozzle } from '@/components/dashboard/dripping-nozzle';
 import type { NozzleStatusDto, VisualizationDto } from '@/types/api';
 
 interface ActiveFuelingsProps {
@@ -100,15 +101,18 @@ export function ActiveFuelings({ statuses, visualizations, pricesByProduct }: Ac
                       <p className="text-xs text-slate-600">{product}</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-lg font-bold text-orange-600">
-                      {vis ? `₡${(vis.currentCash * 100).toFixed(0)}` : '---'}
-                    </p>
-                    {liters != null && liters > 0 && (
-                      <p className="text-xs text-slate-500">
-                        {liters.toFixed(2)} L
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className="text-lg font-bold text-orange-600">
+                        {vis ? `₡${(vis.currentCash * 100).toFixed(0)}` : '---'}
                       </p>
-                    )}
+                      {liters != null && liters > 0 && (
+                        <p className="text-xs text-slate-500">
+                          {liters.toFixed(2)} L
+                        </p>
+                      )}
+                    </div>
+                    <DrippingNozzle product={product} className="shrink-0 -scale-x-100" />
                   </div>
                 </div>
               );
