@@ -37,10 +37,31 @@ interface AttendantRow {
   trucks: number;
   cars: number;
   motorcycles: number;
+  /** Índice de Rendimiento relativo a los compañeros del mismo turno (1.00 = promedio). */
+  ir: number;
+  /** Horas calendario con al menos un despacho propio. */
+  activeHours: number;
+  ratePerHour: number;
+  amountPerHour: number;
 }
 
-type SortField = 'totalTransactions' | 'totalVolume' | 'totalAmount' | 'avgVolume' | 'avgAmount';
+type SortField = 'totalTransactions' | 'totalVolume' | 'totalAmount' | 'avgVolume' | 'avgAmount' | 'ir' | 'ratePerHour' | 'amountPerHour';
 type SortDirection = 'asc' | 'desc';
+
+// Celda fecha×turno para el IR. La madrugada (antes de las 5) pertenece al
+// turno nocturno que inició el día anterior.
+function shiftCellOf(d: Date): string {
+  const h = d.getHours();
+  const date = new Date(d);
+  let band: string;
+  if (h >= 5 && h < 13) band = 'T1';
+  else if (h >= 13 && h < 21) band = 'T2';
+  else {
+    band = 'T3';
+    if (h < 5) date.setDate(date.getDate() - 1);
+  }
+  return `${date.toDateString()}|${band}`;
+}
 
 export function AttendantPerformanceReport() {
   const today = getToday();
@@ -119,7 +140,11 @@ export function AttendantPerformanceReport() {
       return isInHourRange(hour, hourStart, hourEnd) && selectedDays.has(dayOfWeek);
     });
 
-    const map = new Map<string, Omit<AttendantRow, 'avgVolume' | 'avgAmount'>>();
+    const map = new Map<string, Omit<AttendantRow, 'avgVolume' | 'avgAmount' | 'ir' | 'activeHours' | 'ratePerHour' | 'amountPerHour'>>();
+
+    // Celdas fecha×turno (IR) y horas activas por pistero
+    const cells = new Map<string, { total: number; byAttendant: Map<string, number> }>();
+    const activeHourSets = new Map<string, Set<string>>();
 
     for (const t of filtered) {
       const key = t.attendantName!; // el filtro de arriba ya excluye null
@@ -146,14 +171,50 @@ export function AttendantPerformanceReport() {
       if (vehicle === 'truck') row.trucks++;
       else if (vehicle === 'car') row.cars++;
       else row.motorcycles++;
+
+      const d = new Date(t.transactionDate);
+      const cellKey = shiftCellOf(d);
+      let cell = cells.get(cellKey);
+      if (!cell) {
+        cell = { total: 0, byAttendant: new Map() };
+        cells.set(cellKey, cell);
+      }
+      cell.total++;
+      cell.byAttendant.set(key, (cell.byAttendant.get(key) ?? 0) + 1);
+
+      const hourKey = `${d.toDateString()}|${d.getHours()}`;
+      let hours = activeHourSets.get(key);
+      if (!hours) {
+        hours = new Set();
+        activeHourSets.set(key, hours);
+      }
+      hours.add(hourKey);
+    }
+
+    // Esperado por pistero: en cada celda donde estuvo presente, el reparto
+    // equitativo entre los presentes. IR = real / esperado.
+    const expected = new Map<string, number>();
+    for (const cell of cells.values()) {
+      const share = cell.total / cell.byAttendant.size;
+      for (const name of cell.byAttendant.keys()) {
+        expected.set(name, (expected.get(name) ?? 0) + share);
+      }
     }
 
     return Array.from(map.values())
-      .map((row) => ({
-        ...row,
-        avgVolume: row.totalTransactions > 0 ? row.totalVolume / row.totalTransactions : 0,
-        avgAmount: row.totalTransactions > 0 ? row.totalAmount / row.totalTransactions : 0,
-      }))
+      .map((row) => {
+        const exp = expected.get(row.name) ?? 0;
+        const activeHours = activeHourSets.get(row.name)?.size ?? 0;
+        return {
+          ...row,
+          avgVolume: row.totalTransactions > 0 ? row.totalVolume / row.totalTransactions : 0,
+          avgAmount: row.totalTransactions > 0 ? row.totalAmount / row.totalTransactions : 0,
+          ir: exp > 0 ? row.totalTransactions / exp : 1,
+          activeHours,
+          ratePerHour: activeHours > 0 ? row.totalTransactions / activeHours : 0,
+          amountPerHour: activeHours > 0 ? row.totalAmount / activeHours : 0,
+        };
+      })
       .sort((a, b) => {
         const mult = sortDirection === 'desc' ? -1 : 1;
         return (a[sortField] - b[sortField]) * mult;
@@ -329,6 +390,27 @@ export function AttendantPerformanceReport() {
                         <span className="inline-flex items-center">Despachos <SortIcon field="totalTransactions" /></span>
                       </TableHead>
                       <TableHead
+                        className="font-bold text-gray-700 text-center cursor-pointer hover:text-amber-600 select-none"
+                        onClick={() => handleSort('ir')}
+                        title="Índice de Rendimiento: despachos vs. el promedio de sus compañeros en los mismos turnos (1.00 = igual al promedio)"
+                      >
+                        <span className="inline-flex items-center">IR <SortIcon field="ir" /></span>
+                      </TableHead>
+                      <TableHead
+                        className="font-bold text-gray-700 text-right cursor-pointer hover:text-amber-600 select-none"
+                        onClick={() => handleSort('ratePerHour')}
+                        title="Despachos por hora activa (horas con al menos un despacho propio)"
+                      >
+                        <span className="inline-flex items-center">Desp/h <SortIcon field="ratePerHour" /></span>
+                      </TableHead>
+                      <TableHead
+                        className="font-bold text-gray-700 text-right cursor-pointer hover:text-amber-600 select-none"
+                        onClick={() => handleSort('amountPerHour')}
+                        title="Colones por hora activa"
+                      >
+                        <span className="inline-flex items-center">₡/h <SortIcon field="amountPerHour" /></span>
+                      </TableHead>
+                      <TableHead
                         className="font-bold text-gray-700 text-right cursor-pointer hover:text-amber-600 select-none"
                         onClick={() => handleSort('totalVolume')}
                       >
@@ -392,6 +474,26 @@ export function AttendantPerformanceReport() {
                             {row.totalTransactions}
                           </span>
                         </TableCell>
+                        <TableCell className="text-center">
+                          <span
+                            title={`Hizo ${(row.ir * 100).toFixed(0)}% de lo esperado vs. sus compañeros de turno`}
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full font-bold ${
+                              row.ir >= 1.1
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : row.ir < 0.9
+                                ? 'bg-amber-100 text-amber-700'
+                                : 'bg-gray-100 text-gray-600'
+                            }`}
+                          >
+                            {row.ir.toFixed(2)}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right text-gray-700">
+                          {row.ratePerHour.toFixed(1)}
+                        </TableCell>
+                        <TableCell className="text-right text-gray-700">
+                          ₡{formatCurrency(row.amountPerHour)}
+                        </TableCell>
                         <TableCell className="text-right font-semibold text-gray-900">
                           {row.totalVolume.toFixed(2)} <span className="text-sm text-gray-500">L</span>
                         </TableCell>
@@ -417,10 +519,17 @@ export function AttendantPerformanceReport() {
             )}
 
             {/* Legend */}
-            <div className="mt-3 flex flex-wrap gap-4 text-xs text-gray-400 px-1">
-              <span><Truck className="inline h-3 w-3" /> Camión: Diesel + &gt;50 L</span>
-              <span><Car className="inline h-3 w-3" /> Auto: &ge;10 L (no camión)</span>
-              <span><Bike className="inline h-3 w-3" /> Moto: &lt;10 L</span>
+            <div className="mt-3 space-y-1 px-1 text-xs text-gray-400">
+              <div className="flex flex-wrap gap-4">
+                <span><Truck className="inline h-3 w-3" /> Camión: Diesel + &gt;50 L</span>
+                <span><Car className="inline h-3 w-3" /> Auto: &ge;10 L (no camión)</span>
+                <span><Bike className="inline h-3 w-3" /> Moto: &lt;10 L</span>
+              </div>
+              <div>
+                <strong>IR</strong>: rendimiento vs. el promedio de sus compañeros en los mismos turnos que trabajó
+                (1.00 = igual al promedio; turnos donde trabajó solo aportan 1.00).
+                {' '}<strong>Desp/h</strong> y <strong>₡/h</strong>: por hora activa (horas con al menos un despacho propio).
+              </div>
             </div>
           </>
         )}
