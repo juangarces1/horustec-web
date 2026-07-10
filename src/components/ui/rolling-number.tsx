@@ -34,13 +34,15 @@ export function RollingNumber({ text, className }: RollingNumberProps) {
           }
 
           return (
-            <span key={key} className="inline-block h-[1em] overflow-hidden">
+            <span key={key} className="inline-block h-[1em] overflow-hidden leading-none">
               <span
                 className="block transition-transform duration-700 ease-out motion-reduce:transition-none"
                 style={{ transform: `translateY(-${digit}em)` }}
               >
                 {DIGITS.map((n) => (
-                  <span key={n} className="block h-[1em]">
+                  // leading-none explícito: utilidades de tamaño (text-3xl) traen su
+                  // propio line-height y sin esto el dígito vecino se asoma en la caja de 1em
+                  <span key={n} className="block h-[1em] leading-none">
                     {n}
                   </span>
                 ))}

@@ -68,18 +68,21 @@ export function DispenserCard({ dispenserNumber, status, currentLiters, activeNo
         {/* Show money and liters when fueling */}
         {currentLiters !== null && currentLiters > 0 && (
           <div className="flex flex-col items-center gap-1 mt-2">
-            <div className="font-mono font-bold bg-white/20 px-4 py-2 rounded-xl shadow-lg">
-              <span className="text-2xl">₡</span>
-              <RollingNumber
-                text={Math.round(currentLiters).toLocaleString('es-ES')}
-                className="text-3xl"
-              />
-            </div>
-            {calculatedLiters != null && calculatedLiters > 0 && (
-              <div className="text-sm font-medium text-center">
-                <RollingNumber text={calculatedLiters.toFixed(2)} /> L
+            <div className="flex flex-col items-center font-mono font-bold bg-white/20 px-4 py-2 rounded-xl shadow-lg">
+              <div>
+                <span className="text-2xl">₡</span>
+                <RollingNumber
+                  text={Math.round(currentLiters).toLocaleString('es-ES')}
+                  className="text-3xl"
+                />
               </div>
-            )}
+              {calculatedLiters != null && calculatedLiters > 0 && (
+                <div className="mt-1.5 w-full border-t border-white/30 pt-1.5 text-center">
+                  <RollingNumber text={calculatedLiters.toFixed(2)} className="text-xl" />
+                  <span className="ml-1 text-sm">L</span>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
