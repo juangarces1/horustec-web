@@ -16,7 +16,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 const ITEMS_PER_PAGE = 9;
 
-export default function FrentistasPage() {
+export default function PisterosPage() {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editingAttendant, setEditingAttendant] = useState<AttendantDto | null>(null);
@@ -35,10 +35,10 @@ export default function FrentistasPage() {
     mutationFn: (id: string) => attendantsApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['attendants'] });
-      toast.success('Frentista eliminado exitosamente');
+      toast.success('Pistero eliminado exitosamente');
     },
     onError: (error: any) => {
-      toast.error(error?.response?.data?.message || 'Error al eliminar frentista');
+      toast.error(error?.response?.data?.message || 'Error al eliminar pistero');
     },
   });
 
@@ -78,7 +78,7 @@ export default function FrentistasPage() {
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50">
-        <div className="text-xl text-gray-600">Cargando frentistas...</div>
+        <div className="text-xl text-gray-600">Cargando pisteros...</div>
       </div>
     );
   }
@@ -96,7 +96,7 @@ export default function FrentistasPage() {
           </Link>
           <div>
             <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-              Frentistas
+              Pisteros
             </h1>
             <p className="text-gray-600 mt-1">Gestión de operadores y personal</p>
           </div>
@@ -109,7 +109,7 @@ export default function FrentistasPage() {
           className="gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
         >
           <UserPlus className="h-4 w-4" />
-          Nuevo Frentista
+          Nuevo Pistero
         </Button>
       </div>
 
@@ -298,7 +298,7 @@ export default function FrentistasPage() {
         <div className="text-center py-12">
           <Users className="h-16 w-16 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-500 text-lg">
-            {searchQuery ? 'No se encontraron resultados' : 'No hay frentistas registrados'}
+            {searchQuery ? 'No se encontraron resultados' : 'No hay pisteros registrados'}
           </p>
           {!searchQuery && (
             <Button
@@ -348,11 +348,11 @@ function AttendantForm({
         : attendantsApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['attendants'] });
-      toast.success(attendant ? 'Frentista actualizado exitosamente' : 'Frentista creado exitosamente');
+      toast.success(attendant ? 'Pistero actualizado exitosamente' : 'Pistero creado exitosamente');
       onClose();
     },
     onError: (error: any) => {
-      toast.error(error?.response?.data?.message || 'Error al guardar frentista');
+      toast.error(error?.response?.data?.message || 'Error al guardar pistero');
     },
   });
 
@@ -408,7 +408,7 @@ function AttendantForm({
     <Card className="mb-6 border-2 border-purple-200 bg-white/90 backdrop-blur-sm">
       <CardHeader>
         <CardTitle className="text-2xl bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-          {attendant ? 'Editar Frentista' : 'Nuevo Frentista'}
+          {attendant ? 'Editar Pistero' : 'Nuevo Pistero'}
         </CardTitle>
         <CardDescription>Complete la información del operador</CardDescription>
       </CardHeader>

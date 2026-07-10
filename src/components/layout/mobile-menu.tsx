@@ -66,7 +66,7 @@ const navGroups: NavGroup[] = [
   {
     title: 'Administracion',
     items: [
-      { label: 'Frentistas', href: '/frentistas', icon: Users },
+      { label: 'Pisteros', href: '/pisteros', icon: Users },
       { label: 'Usuarios', href: '/usuarios', icon: UserCog },
       { label: 'Productos', href: '/productos', icon: Package },
     ],

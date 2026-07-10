@@ -578,14 +578,14 @@ function Step3ConfigurePreset({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {/* Attendant selector */}
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-slate-600">Frentista</label>
+            <label className="text-sm font-medium text-slate-600">Pistero</label>
             <Select
               value={selectedAttendantId}
               onValueChange={setSelectedAttendantId}
               disabled={loadingAttendants}
             >
               <SelectTrigger className="bg-white">
-                <SelectValue placeholder={loadingAttendants ? 'Cargando...' : 'Selecciona un frentista'} />
+                <SelectValue placeholder={loadingAttendants ? 'Cargando...' : 'Selecciona un pistero'} />
               </SelectTrigger>
               <SelectContent>
                 {eligibleAttendants.map((a) => (
@@ -595,7 +595,7 @@ function Step3ConfigurePreset({
                 ))}
                 {!loadingAttendants && eligibleAttendants.length === 0 && (
                   <SelectItem value="__none__" disabled>
-                    Sin frentistas con tag asignado
+                    Sin pisteros con tag asignado
                   </SelectItem>
                 )}
               </SelectContent>
@@ -613,7 +613,7 @@ function Step3ConfigurePreset({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="0">Frentista</SelectItem>
+                <SelectItem value="0">Pistero</SelectItem>
                 <SelectItem value="1">Cliente</SelectItem>
               </SelectContent>
             </Select>
@@ -767,7 +767,7 @@ function Step3ConfigurePreset({
         {!canSubmit && !isSubmitting && (
           <p className="mt-2 text-center text-xs text-slate-400">
             {!selectedAttendant
-              ? 'Selecciona un frentista para continuar'
+              ? 'Selecciona un pistero para continuar'
               : activeTab !== 'full'
               ? 'Selecciona o ingresa un valor para continuar'
               : ''}

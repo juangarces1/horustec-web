@@ -57,23 +57,28 @@ export function AttendantPerformanceReport() {
   const [sortField, setSortField] = useState<SortField>('totalTransactions');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
+  const [generated, setGenerated] = useState(false);
+
+  // El query corre solo tras "Generar" (enabled); cambiar searchFrom/searchTo
+  // dispara el fetch vía queryKey, sin necesidad de refetch con setTimeout.
   const { data: transactions, isLoading, refetch } = useQuery({
     queryKey: ['attendant-report', searchFrom, searchTo],
     queryFn: () => fuelingApi.getTransactions(
       `${searchFrom}T00:00:00`,
       `${searchTo}T23:59:59`
     ),
-    enabled: false,
+    enabled: generated,
   });
 
-  const [generated, setGenerated] = useState(false);
-
   const handleGenerate = () => {
-    setSearchFrom(fromDate);
-    setSearchTo(toDate);
-    setGenerated(true);
-    // Small delay to ensure queryKey updates before refetch
-    setTimeout(() => refetch(), 0);
+    if (generated && searchFrom === fromDate && searchTo === toDate) {
+      // Mismo rango: forzar recarga
+      void refetch();
+    } else {
+      setSearchFrom(fromDate);
+      setSearchTo(toDate);
+      setGenerated(true);
+    }
   };
 
   const applyPreset = (preset: typeof SHIFT_PRESETS[number]) => {
@@ -117,7 +122,7 @@ export function AttendantPerformanceReport() {
     const map = new Map<string, Omit<AttendantRow, 'avgVolume' | 'avgAmount'>>();
 
     for (const t of filtered) {
-      const key = t.attendantName || 'Sin asignar';
+      const key = t.attendantName!; // el filtro de arriba ya excluye null
 
       if (!map.has(key)) {
         map.set(key, {
@@ -176,7 +181,7 @@ export function AttendantPerformanceReport() {
       <CardHeader className="bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-t-lg">
         <div className="flex items-center gap-2">
           <Trophy className="h-5 w-5" />
-          <CardTitle className="text-xl">Rendimiento de Frentistas</CardTitle>
+          <CardTitle className="text-xl">Rendimiento de Pisteros</CardTitle>
         </div>
       </CardHeader>
       <CardContent className="pt-6 space-y-4">
@@ -308,7 +313,7 @@ export function AttendantPerformanceReport() {
 
             {ranking.length === 0 ? (
               <div className="text-center py-10 text-gray-500">
-                No hay transacciones de frentistas en este rango
+                No hay transacciones de pisteros en este rango
               </div>
             ) : (
               <div className="overflow-x-auto rounded-lg border">
@@ -316,7 +321,7 @@ export function AttendantPerformanceReport() {
                   <TableHeader>
                     <TableRow className="bg-gray-50">
                       <TableHead className="font-bold text-gray-700 w-12 text-center">#</TableHead>
-                      <TableHead className="font-bold text-gray-700">Frentista</TableHead>
+                      <TableHead className="font-bold text-gray-700">Pistero</TableHead>
                       <TableHead
                         className="font-bold text-gray-700 text-center cursor-pointer hover:text-amber-600 select-none"
                         onClick={() => handleSort('totalTransactions')}
@@ -365,11 +370,12 @@ export function AttendantPerformanceReport() {
                         className={`hover:bg-amber-50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}
                       >
                         <TableCell className="text-center font-bold">
-                          {idx === 0 ? (
+                          {/* Medallas solo con orden descendente: ascendente pondría el oro en el peor */}
+                          {sortDirection === 'desc' && idx === 0 ? (
                             <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-amber-100 text-amber-700 font-bold">1</span>
-                          ) : idx === 1 ? (
+                          ) : sortDirection === 'desc' && idx === 1 ? (
                             <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-200 text-gray-700 font-bold">2</span>
-                          ) : idx === 2 ? (
+                          ) : sortDirection === 'desc' && idx === 2 ? (
                             <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-orange-100 text-orange-700 font-bold">3</span>
                           ) : (
                             <span className="text-gray-500">{idx + 1}</span>

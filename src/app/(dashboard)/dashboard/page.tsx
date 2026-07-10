@@ -150,7 +150,7 @@ export default function DashboardPage() {
     }
   });
 
-  // Transacciones del día efectivo → KPIs, productos, frentistas, gráfica horaria
+  // Transacciones del día efectivo → KPIs, productos, pisteros, gráfica horaria
   const selectedTransactions = chartTransactions.filter(
     (tx) => dayKeyOf(new Date(tx.transactionDate)) === effectiveDay
   );
@@ -288,7 +288,7 @@ export default function DashboardPage() {
             <p className="text-sm opacity-90 mt-1">
               Los datos cubren los últimos 7 días y se actualizan cada 30 segundos; los estados de
               dispensadores cada 5 segundos. Haz click en una barra de día para filtrar los KPIs,
-              productos y frentistas de ese día — Abasteciendo Ahora siempre muestra el tiempo real.
+              productos y pisteros de ese día — Abasteciendo Ahora siempre muestra el tiempo real.
             </p>
           </div>
         </div>

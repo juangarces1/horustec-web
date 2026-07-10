@@ -7,7 +7,7 @@ import apiClient from './client';
 export interface PresetWithTagRequest {
   nozzleCode: string;
   tagId: string;
-  identifierType: number;  // 0=Frentista, 1=Cliente
+  identifierType: number;  // 0=Pistero, 1=Cliente
   authorize: boolean;
   presetValue: number;     // Amount in colones (type 0) or liters (type 1). 0 = full tank.
   timeoutSeconds: number;  // 0-99

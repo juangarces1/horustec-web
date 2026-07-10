@@ -117,7 +117,7 @@ function HistorialContent() {
     staleTime: 60_000,
   });
 
-  // Frentistas únicos del resultado actual (para el filtro)
+  // Pisteros únicos del resultado actual (para el filtro)
   const attendantOptions = useMemo(() => {
     const names = new Set<string>();
     transactions?.forEach((t) => {
@@ -201,7 +201,7 @@ function HistorialContent() {
     return { items, totalPages, startIndex: startIndex + 1, endIndex: Math.min(endIndex, filteredTransactions.length) };
   }, [filteredTransactions, currentPage, itemsPerPage]);
 
-  // Aplica el rango draft al query (NO toca los filtros de combustible/zona/frentista)
+  // Aplica el rango draft al query (NO toca los filtros de combustible/zona/pistero)
   const handleSearch = () => {
     setCurrentPage(1);
     const next: DateRange = { fromDate, fromTime, toDate, toTime };
@@ -257,8 +257,8 @@ function HistorialContent() {
       'Fecha/Hora': formatDate(t.transactionDate),
       Manguera: t.nozzleCode || t.nozzleNumber?.toString() || '',
       Combustible: t.productName || (t.fuelCode && FUEL_NAMES[t.fuelCode]) || t.fuelCode || '',
-      Frentista: t.attendantName || '',
-      'Cod. Frentista': t.attendantCode || '',
+      Pistero: t.attendantName || '',
+      'Cod. Pistero': t.attendantCode || '',
       Litros: Number(t.totalLiters.toFixed(2)),
       'Precio Unit.': t.unitPrice,
       Total: t.totalCash,
@@ -427,7 +427,7 @@ function HistorialContent() {
               <div>
                 <Label className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
                   <Users className="h-3.5 w-3.5 text-blue-500" />
-                  Frentista
+                  Pistero
                 </Label>
                 <Select value={attendantFilter} onValueChange={(v) => { setAttendantFilter(v === 'all' ? '' : v); setCurrentPage(1); }}>
                   <SelectTrigger className="w-full border-2 border-gray-200 focus:border-blue-500 rounded-lg h-10 transition-colors">
@@ -450,7 +450,7 @@ function HistorialContent() {
                   type="text"
                   value={searchText}
                   onChange={(e) => { setSearchText(e.target.value); setCurrentPage(1); }}
-                  placeholder="# registro o frentista..."
+                  placeholder="# registro o pistero..."
                   className="border-2 border-gray-200 focus:border-blue-500 focus:ring-blue-500/20 rounded-lg h-10 transition-colors"
                 />
               </div>
@@ -572,7 +572,7 @@ function HistorialContent() {
                           className="font-bold text-gray-700 cursor-pointer hover:text-indigo-600 select-none"
                           onClick={() => handleSort('attendantName')}
                         >
-                          <span className="inline-flex items-center">Frentista <SortIcon field="attendantName" /></span>
+                          <span className="inline-flex items-center">Pistero <SortIcon field="attendantName" /></span>
                         </TableHead>
                         <TableHead
                           className="font-bold text-gray-700 text-right cursor-pointer hover:text-indigo-600 select-none"

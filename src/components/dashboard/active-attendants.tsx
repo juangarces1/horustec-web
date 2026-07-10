@@ -33,7 +33,7 @@ export function ActiveAttendants({ transactions }: ActiveAttendantsProps) {
 
   const attendants = Object.values(attendantMap).sort((a, b) => b.count - a.count);
 
-  console.log('👥 Frentistas procesados:', attendants.length, attendants);
+  console.log('👥 Pisteros procesados:', attendants.length, attendants);
 
   return (
     <Card className="shadow-md">
@@ -43,7 +43,7 @@ export function ActiveAttendants({ transactions }: ActiveAttendantsProps) {
             <Users className="h-4 w-4 text-blue-600" />
           </div>
           <CardTitle className="text-lg font-bold text-slate-900">
-            Frentistas Activos
+            Pisteros Activos
           </CardTitle>
           <Badge variant="default" className="ml-auto bg-blue-500">
             {attendants.length}
@@ -54,8 +54,8 @@ export function ActiveAttendants({ transactions }: ActiveAttendantsProps) {
         {attendants.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-slate-500">
             <Users className="h-12 w-12 mb-3 text-slate-300" />
-            <p className="text-sm font-medium">Sin frentistas asignados</p>
-            <p className="text-xs mt-1 text-slate-400">Las transacciones no tienen frentista asociado</p>
+            <p className="text-sm font-medium">Sin pisteros asignados</p>
+            <p className="text-xs mt-1 text-slate-400">Las transacciones no tienen pistero asociado</p>
           </div>
         ) : (
           <div className="space-y-3 max-h-80 overflow-y-auto">
