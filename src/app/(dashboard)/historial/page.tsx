@@ -18,7 +18,8 @@ import { AttendantPerformanceReport } from '@/components/historial/attendant-per
 import { HourlyTrafficChart } from '@/components/historial/hourly-traffic-chart';
 import { ProductTrendChart } from '@/components/historial/product-trend-chart';
 import { WeekdayTrafficChart } from '@/components/historial/weekday-traffic-chart';
-import { ChevronDown, ChevronUp, Calendar, Clock, Search, Fuel, MapPin, Trophy, Activity, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { ChevronDown, ChevronUp, Calendar, Clock, Search, Fuel, MapPin, Trophy, Activity, ArrowUpDown, ArrowUp, ArrowDown, Download, Users } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import {
   Table,
   TableBody,
@@ -33,14 +34,33 @@ import { FUEL_NAMES, getToday, formatCurrency, formatDate } from '@/lib/historia
 type TableSortField = 'registerNumber' | 'transactionDate' | 'nozzleCode' | 'attendantName' | 'totalLiters' | 'unitPrice' | 'totalCash';
 type SortDirection = 'asc' | 'desc';
 
+interface DateRange {
+  fromDate: string;
+  fromTime: string;
+  toDate: string;
+  toTime: string;
+}
+
+const toLocalDateStr = (d: Date) =>
+  `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
+
 function HistorialContent() {
   const today = getToday();
+  // Draft: lo que el usuario edita en los inputs. Applied: lo que consulta el query.
   const [fromDate, setFromDate] = useState(today);
   const [fromTime, setFromTime] = useState('00:00');
   const [toDate, setToDate] = useState(today);
   const [toTime, setToTime] = useState('23:59');
+  const [applied, setApplied] = useState<DateRange>({
+    fromDate: today,
+    fromTime: '00:00',
+    toDate: today,
+    toTime: '23:59',
+  });
   const [zoneFilter, setZoneFilter] = useState('');
   const [productFilter, setProductFilter] = useState('');
+  const [attendantFilter, setAttendantFilter] = useState('');
+  const [searchText, setSearchText] = useState('');
 
   const [performanceOpen, setPerformanceOpen] = useState(false);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
@@ -68,19 +88,48 @@ function HistorialContent() {
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const { data: transactions, isLoading, error, refetch } = useQuery({
-    queryKey: ['transactions', fromDate, fromTime, toDate, toTime],
+    queryKey: ['transactions', applied],
     queryFn: () => fuelingApi.getTransactions(
-      fromDate ? `${fromDate}T${fromTime || '00:00'}:00` : undefined,
-      toDate ? `${toDate}T${toTime || '23:59'}:59` : undefined,
+      applied.fromDate ? `${applied.fromDate}T${applied.fromTime || '00:00'}:00` : undefined,
+      applied.toDate ? `${applied.toDate}T${applied.toTime || '23:59'}:59` : undefined,
     ),
   });
 
-  const filteredTransactions = useMemo(() => {
-    if (!transactions) return [];
-    let result = transactions;
+  // Período anterior equivalente (misma duración, inmediatamente antes) para comparativos
+  const prevRange = useMemo(() => {
+    const from = new Date(`${applied.fromDate}T${applied.fromTime}:00`);
+    const to = new Date(`${applied.toDate}T${applied.toTime}:59`);
+    const duration = to.getTime() - from.getTime();
+    if (!Number.isFinite(duration) || duration <= 0) return null;
+    return {
+      from: new Date(from.getTime() - duration - 1000).toISOString(),
+      to: new Date(from.getTime() - 1000).toISOString(),
+    };
+  }, [applied]);
+
+  const { data: prevTransactions } = useQuery({
+    queryKey: ['transactions-prev', applied],
+    queryFn: () => fuelingApi.getTransactions(prevRange!.from, prevRange!.to),
+    enabled: prevRange != null,
+    staleTime: 60_000,
+  });
+
+  // Frentistas únicos del resultado actual (para el filtro)
+  const attendantOptions = useMemo(() => {
+    const names = new Set<string>();
+    transactions?.forEach((t) => {
+      if (t.attendantName && t.attendantName.trim() !== '') names.add(t.attendantName);
+    });
+    return [...names].sort((a, b) => a.localeCompare(b));
+  }, [transactions]);
+
+  // Filtros client-side compartidos entre el período actual y el anterior
+  const applyClientFilters = (list: typeof transactions) => {
+    if (!list) return [];
+    let result = list;
     if (productFilter) {
       result = result.filter((t) => t.fuelCode === productFilter);
     }
@@ -89,6 +138,22 @@ function HistorialContent() {
     } else if (zoneFilter === '2') {
       result = result.filter((t) => (t.nozzleNumber ?? 0) > 12);
     }
+    if (attendantFilter) {
+      result = result.filter((t) => t.attendantName === attendantFilter);
+    }
+    const search = searchText.trim().toLowerCase();
+    if (search) {
+      result = result.filter(
+        (t) =>
+          t.registerNumber.toString().includes(search) ||
+          (t.attendantName ?? '').toLowerCase().includes(search)
+      );
+    }
+    return result;
+  };
+
+  const filteredTransactions = useMemo(() => {
+    const result = applyClientFilters(transactions);
 
     const mult = sortDirection === 'desc' ? -1 : 1;
     return [...result].sort((a, b) => {
@@ -114,7 +179,15 @@ function HistorialContent() {
           return 0;
       }
     });
-  }, [transactions, productFilter, zoneFilter, sortField, sortDirection]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transactions, productFilter, zoneFilter, attendantFilter, searchText, sortField, sortDirection]);
+
+  // Período anterior con los MISMOS filtros client-side, para comparar peras con peras
+  const filteredPrev = useMemo(
+    () => applyClientFilters(prevTransactions),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [prevTransactions, productFilter, zoneFilter, attendantFilter, searchText]
+  );
 
   // Pagination logic
   const paginatedData = useMemo(() => {
@@ -126,18 +199,92 @@ function HistorialContent() {
     const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
 
     return { items, totalPages, startIndex: startIndex + 1, endIndex: Math.min(endIndex, filteredTransactions.length) };
-  }, [filteredTransactions, currentPage]);
+  }, [filteredTransactions, currentPage, itemsPerPage]);
 
-  // Reset to page 1 when filters change
-  const handleRefetch = () => {
+  // Aplica el rango draft al query (NO toca los filtros de combustible/zona/frentista)
+  const handleSearch = () => {
     setCurrentPage(1);
-    setProductFilter('');
-    setZoneFilter('');
-    void refetch();
+    const next: DateRange = { fromDate, fromTime, toDate, toTime };
+    if (JSON.stringify(next) === JSON.stringify(applied)) {
+      void refetch();
+    } else {
+      setApplied(next);
+    }
+  };
+
+  // Rangos rápidos: fijan los inputs Y aplican de inmediato
+  const applyQuickRange = (range: 'hoy' | 'ayer' | '7dias' | 'mes') => {
+    const now = new Date();
+    let from = new Date(now);
+    let to = new Date(now);
+    if (range === 'ayer') {
+      from.setDate(from.getDate() - 1);
+      to = new Date(from);
+    } else if (range === '7dias') {
+      from.setDate(from.getDate() - 6);
+    } else if (range === 'mes') {
+      from = new Date(now.getFullYear(), now.getMonth(), 1);
+    }
+    const next: DateRange = {
+      fromDate: toLocalDateStr(from),
+      fromTime: '00:00',
+      toDate: toLocalDateStr(to),
+      toTime: '23:59',
+    };
+    setFromDate(next.fromDate);
+    setFromTime(next.fromTime);
+    setToDate(next.toDate);
+    setToTime(next.toTime);
+    setCurrentPage(1);
+    setApplied(next);
   };
 
   const totalCash = filteredTransactions.reduce((sum, t) => sum + t.totalCash, 0);
   const totalLiters = filteredTransactions.reduce((sum, t) => sum + t.totalLiters, 0);
+  const avgTicket = filteredTransactions.length > 0 ? totalCash / filteredTransactions.length : 0;
+
+  const prevTotalCash = filteredPrev.reduce((sum, t) => sum + t.totalCash, 0);
+  const prevTotalLiters = filteredPrev.reduce((sum, t) => sum + t.totalLiters, 0);
+  const prevAvgTicket = filteredPrev.length > 0 ? prevTotalCash / filteredPrev.length : 0;
+
+  // Columna Estado solo cuando hay al menos una transacción con problema
+  const hasIntegrityIssues = filteredTransactions.some((t) => !(t.integrityOk && t.checksumOk));
+
+  // Exporta el resultado filtrado completo (no solo la página visible)
+  const handleExport = () => {
+    const rows = filteredTransactions.map((t) => ({
+      Registro: t.registerNumber,
+      'Fecha/Hora': formatDate(t.transactionDate),
+      Manguera: t.nozzleCode || t.nozzleNumber?.toString() || '',
+      Combustible: t.productName || (t.fuelCode && FUEL_NAMES[t.fuelCode]) || t.fuelCode || '',
+      Frentista: t.attendantName || '',
+      'Cod. Frentista': t.attendantCode || '',
+      Litros: Number(t.totalLiters.toFixed(2)),
+      'Precio Unit.': t.unitPrice,
+      Total: t.totalCash,
+      Estado: t.integrityOk && t.checksumOk ? 'OK' : 'Error',
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [
+      { wch: 10 }, { wch: 19 }, { wch: 10 }, { wch: 12 },
+      { wch: 28 }, { wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 8 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Transacciones');
+    XLSX.writeFile(wb, `historial_${applied.fromDate}_a_${applied.toDate}.xlsx`);
+  };
+
+  // Delta porcentual vs período anterior (oculto si no hay base de comparación)
+  const DeltaBadge = ({ current, previous }: { current: number; previous: number }) => {
+    if (previous <= 0) return null;
+    const pct = ((current - previous) / previous) * 100;
+    const up = pct >= 0;
+    return (
+      <div className="mt-2 text-xs font-semibold opacity-90">
+        {up ? '▲' : '▼'} {Math.abs(pct).toFixed(1)}% vs período anterior
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 p-8">
@@ -166,6 +313,24 @@ function HistorialContent() {
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-6 pb-5">
+            {/* Rangos rápidos */}
+            <div className="flex flex-wrap gap-2 mb-5">
+              {([
+                ['hoy', 'Hoy'],
+                ['ayer', 'Ayer'],
+                ['7dias', 'Últimos 7 días'],
+                ['mes', 'Este mes'],
+              ] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => applyQuickRange(key)}
+                  className="rounded-full border-2 border-gray-200 px-4 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
             {/* Date/Time Row */}
             <div className="grid gap-6 md:grid-cols-2 mb-5">
               {/* Desde */}
@@ -225,7 +390,7 @@ function HistorialContent() {
             </div>
 
             {/* Filters + Search Row */}
-            <div className="grid gap-4 grid-cols-[1fr_1fr_auto]">
+            <div className="grid gap-4 md:grid-cols-[1fr_1fr_1fr_1.2fr_auto]">
               <div>
                 <Label className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
                   <Fuel className="h-3.5 w-3.5 text-purple-500" />
@@ -259,9 +424,39 @@ function HistorialContent() {
                   </SelectContent>
                 </Select>
               </div>
+              <div>
+                <Label className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5 text-blue-500" />
+                  Frentista
+                </Label>
+                <Select value={attendantFilter} onValueChange={(v) => { setAttendantFilter(v === 'all' ? '' : v); setCurrentPage(1); }}>
+                  <SelectTrigger className="w-full border-2 border-gray-200 focus:border-blue-500 rounded-lg h-10 transition-colors">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    {attendantOptions.map((name) => (
+                      <SelectItem key={name} value={name}>{name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
+                  <Search className="h-3.5 w-3.5 text-gray-500" />
+                  Búsqueda
+                </Label>
+                <Input
+                  type="text"
+                  value={searchText}
+                  onChange={(e) => { setSearchText(e.target.value); setCurrentPage(1); }}
+                  placeholder="# registro o frentista..."
+                  className="border-2 border-gray-200 focus:border-blue-500 focus:ring-blue-500/20 rounded-lg h-10 transition-colors"
+                />
+              </div>
               <div className="flex items-end">
                 <Button
-                  onClick={handleRefetch}
+                  onClick={handleSearch}
                   className="h-10 px-6 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white font-semibold shadow-lg rounded-lg transition-all hover:shadow-xl"
                 >
                   <Search className="h-4 w-4 mr-2" />
@@ -274,27 +469,37 @@ function HistorialContent() {
 
         {/* Summary Cards */}
         {transactions && filteredTransactions.length > 0 && (
-          <div className="mb-8 grid gap-6 md:grid-cols-3">
+          <div className="mb-8 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             <Card className="border-0 shadow-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div>
               <CardContent className="pt-6 relative">
                 <div className="text-sm font-semibold opacity-90 mb-2">Total Transacciones</div>
-                <div className="text-5xl font-bold">{filteredTransactions.length}</div>
+                <div className="text-4xl font-bold">{filteredTransactions.length}</div>
+                <DeltaBadge current={filteredTransactions.length} previous={filteredPrev.length} />
               </CardContent>
             </Card>
             <Card className="border-0 shadow-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div>
               <CardContent className="pt-6 relative">
                 <div className="text-sm font-semibold opacity-90 mb-2">Total Litros</div>
-                <div className="text-5xl font-bold">{totalLiters.toFixed(2)}</div>
-                <div className="text-sm opacity-75 mt-1">Litros</div>
+                <div className="text-4xl font-bold">{totalLiters.toFixed(2)} <span className="text-lg opacity-75">L</span></div>
+                <DeltaBadge current={totalLiters} previous={prevTotalLiters} />
               </CardContent>
             </Card>
             <Card className="border-0 shadow-xl bg-gradient-to-br from-purple-500 to-pink-600 text-white overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div>
               <CardContent className="pt-6 relative">
                 <div className="text-sm font-semibold opacity-90 mb-2">Total Dinero</div>
-                <div className="text-5xl font-bold">₡{formatCurrency(totalCash, 2)}</div>
+                <div className="text-4xl font-bold">₡{formatCurrency(totalCash, 2)}</div>
+                <DeltaBadge current={totalCash} previous={prevTotalCash} />
+              </CardContent>
+            </Card>
+            <Card className="border-0 shadow-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div>
+              <CardContent className="pt-6 relative">
+                <div className="text-sm font-semibold opacity-90 mb-2">Ticket Promedio</div>
+                <div className="text-4xl font-bold">₡{formatCurrency(avgTicket, 2)}</div>
+                <DeltaBadge current={avgTicket} previous={prevAvgTicket} />
               </CardContent>
             </Card>
           </div>
@@ -303,7 +508,19 @@ function HistorialContent() {
         {/* Table Card */}
         <Card className="border-0 shadow-2xl bg-white/90 backdrop-blur-sm">
           <CardHeader className="bg-gradient-to-r from-gray-800 to-gray-900 text-white rounded-t-lg">
-            <CardTitle className="text-xl">Registro de Transacciones</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-xl">Registro de Transacciones</CardTitle>
+              <Button
+                onClick={handleExport}
+                disabled={filteredTransactions.length === 0}
+                variant="outline"
+                size="sm"
+                className="border-white/40 bg-white/10 text-white hover:bg-white/20 hover:text-white disabled:opacity-40"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Exportar Excel
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             {isLoading && (
@@ -375,7 +592,9 @@ function HistorialContent() {
                         >
                           <span className="inline-flex items-center">Total <SortIcon field="totalCash" /></span>
                         </TableHead>
-                        <TableHead className="font-bold text-gray-700 text-center">Estado</TableHead>
+                        {hasIntegrityIssues && (
+                          <TableHead className="font-bold text-gray-700 text-center">Estado</TableHead>
+                        )}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -423,17 +642,19 @@ function HistorialContent() {
                               ₡{formatCurrency(transaction.totalCash, 2)}
                             </span>
                           </TableCell>
-                          <TableCell className="text-center">
-                            {transaction.integrityOk && transaction.checksumOk ? (
-                              <span className="inline-flex items-center px-3 py-1 rounded-full bg-green-100 text-green-800 font-semibold">
-                                OK
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center px-3 py-1 rounded-full bg-red-100 text-red-800 font-semibold">
-                                Error
-                              </span>
-                            )}
-                          </TableCell>
+                          {hasIntegrityIssues && (
+                            <TableCell className="text-center">
+                              {transaction.integrityOk && transaction.checksumOk ? (
+                                <span className="inline-flex items-center px-3 py-1 rounded-full bg-green-100 text-green-800 font-semibold">
+                                  OK
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-3 py-1 rounded-full bg-red-100 text-red-800 font-semibold">
+                                  Error
+                                </span>
+                              )}
+                            </TableCell>
+                          )}
                         </TableRow>
                       ))}
                     </TableBody>
@@ -442,10 +663,25 @@ function HistorialContent() {
 
                 {/* Pagination */}
                 <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-t">
-                  <div className="text-sm text-gray-600">
-                    Mostrando <span className="font-semibold text-gray-900">{paginatedData.startIndex}</span> a{' '}
-                    <span className="font-semibold text-gray-900">{paginatedData.endIndex}</span> de{' '}
-                    <span className="font-semibold text-gray-900">{filteredTransactions.length}</span> resultados
+                  <div className="flex items-center gap-4">
+                    <div className="text-sm text-gray-600">
+                      Mostrando <span className="font-semibold text-gray-900">{paginatedData.startIndex}</span> a{' '}
+                      <span className="font-semibold text-gray-900">{paginatedData.endIndex}</span> de{' '}
+                      <span className="font-semibold text-gray-900">{filteredTransactions.length}</span> resultados
+                    </div>
+                    <Select
+                      value={itemsPerPage.toString()}
+                      onValueChange={(v) => { setItemsPerPage(Number(v)); setCurrentPage(1); }}
+                    >
+                      <SelectTrigger className="h-8 w-[110px] border-2 border-gray-200 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="10">10 / pág.</SelectItem>
+                        <SelectItem value="25">25 / pág.</SelectItem>
+                        <SelectItem value="50">50 / pág.</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="flex gap-2">
                     <Button
