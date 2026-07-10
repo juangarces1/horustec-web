@@ -1,4 +1,5 @@
 import { Card } from '@/components/ui/card';
+import { RollingNumber } from '@/components/ui/rolling-number';
 import { NozzleStatus } from '@/types/api';
 import { cn } from '@/lib/utils';
 
@@ -14,16 +15,20 @@ interface DispenserCardProps {
   calculatedLiters?: number | null;
 }
 
+// Jerarquía visual: el naranja de "Abasteciendo" domina; los estados pasivos
+// (Bloqueado, No Configurado) retroceden en gris; el rojo queda reservado
+// para Falla/Error.
 const statusColors: Record<NozzleStatus, string> = {
-  [NozzleStatus.NotConfigured]: 'bg-gray-300 text-gray-700',
+  [NozzleStatus.NotConfigured]: 'bg-gray-100 text-gray-400 border-2 border-dashed border-gray-300',
   [NozzleStatus.Available]: 'bg-green-500 text-white',
-  [NozzleStatus.Blocked]: 'bg-red-500 text-white',
-  [NozzleStatus.Fueling]: 'bg-orange-500 text-white animate-pulse',
+  [NozzleStatus.Blocked]: 'bg-slate-200 text-slate-500',
+  [NozzleStatus.Fueling]:
+    'bg-gradient-to-br from-orange-400 via-orange-500 to-orange-600 text-white shadow-xl shadow-orange-500/40 ring-2 ring-orange-300',
   [NozzleStatus.Ready]: 'bg-blue-500 text-white',
   [NozzleStatus.Waiting]: 'bg-yellow-500 text-white',
-  [NozzleStatus.Failure]: 'bg-red-800 text-white',
+  [NozzleStatus.Failure]: 'bg-red-600 text-white',
   [NozzleStatus.Busy]: 'bg-purple-500 text-white',
-  [NozzleStatus.Error]: 'bg-red-900 text-white',
+  [NozzleStatus.Error]: 'bg-red-800 text-white',
 };
 
 const statusLabels: Record<NozzleStatus, string> = {
@@ -65,11 +70,14 @@ export function DispenserCard({ dispenserNumber, status, currentLiters, activeNo
           <div className="flex flex-col items-center gap-1 mt-2">
             <div className="font-mono font-bold bg-white/20 px-4 py-2 rounded-xl shadow-lg">
               <span className="text-2xl">₡</span>
-              <span className="text-3xl">{Math.round(currentLiters).toLocaleString('es-ES')}</span>
+              <RollingNumber
+                text={Math.round(currentLiters).toLocaleString('es-ES')}
+                className="text-3xl"
+              />
             </div>
             {calculatedLiters != null && calculatedLiters > 0 && (
               <div className="text-sm font-medium text-center">
-                {calculatedLiters.toFixed(2)} L
+                <RollingNumber text={calculatedLiters.toFixed(2)} /> L
               </div>
             )}
           </div>

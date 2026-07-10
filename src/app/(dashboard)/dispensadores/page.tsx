@@ -307,11 +307,11 @@ function DispensadoresContent() {
             <span className="text-sm font-medium">Libre</span>
             </div>
             <div className="flex items-center space-x-3">
-              <div className="h-5 w-5 rounded-lg bg-red-500 shadow-md"></div>
+              <div className="h-5 w-5 rounded-lg bg-slate-200 shadow-md"></div>
               <span className="text-sm font-medium">Bloqueado</span>
             </div>
             <div className="flex items-center space-x-3">
-              <div className="h-5 w-5 rounded-lg bg-orange-500 shadow-md animate-pulse"></div>
+              <div className="h-5 w-5 rounded-lg bg-gradient-to-br from-orange-400 to-orange-600 shadow-md ring-2 ring-orange-300"></div>
               <span className="text-sm font-medium">Abasteciendo</span>
             </div>
             <div className="flex items-center space-x-3">
@@ -323,7 +323,7 @@ function DispensadoresContent() {
               <span className="text-sm font-medium">Espera</span>
             </div>
             <div className="flex items-center space-x-3">
-              <div className="h-5 w-5 rounded-lg bg-red-800 shadow-md"></div>
+              <div className="h-5 w-5 rounded-lg bg-red-600 shadow-md"></div>
               <span className="text-sm font-medium">Falla</span>
             </div>
             <div className="flex items-center space-x-3">
@@ -331,11 +331,11 @@ function DispensadoresContent() {
               <span className="text-sm font-medium">Ocupado</span>
             </div>
             <div className="flex items-center space-x-3">
-              <div className="h-5 w-5 rounded-lg bg-red-900 shadow-md"></div>
+              <div className="h-5 w-5 rounded-lg bg-red-800 shadow-md"></div>
               <span className="text-sm font-medium">Error</span>
             </div>
           <div className="flex items-center space-x-3">
-            <div className="h-5 w-5 rounded-lg bg-gray-300 shadow-md"></div>
+            <div className="h-5 w-5 rounded-lg bg-gray-100 border-2 border-dashed border-gray-300 shadow-md"></div>
             <span className="text-sm font-medium">No Config.</span>
           </div>
         </div>
