@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { identifiersApi } from '@/lib/api/identifiers';
+import { SensorsTab } from '@/components/identificadores/sensors-tab';
 import {
   IdentifierUserLevel,
   IdentifierUserLevelLabels,
@@ -299,7 +300,7 @@ export default function IdentificadoresPage() {
 
       {/* Tabs: Tags / Blacklist */}
       <Tabs defaultValue="tags" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 max-w-md">
+        <TabsList className="grid w-full grid-cols-3 max-w-md">
           <TabsTrigger value="tags" className="gap-2">
             <CreditCard className="h-4 w-4" />
             Tags RFID
@@ -307,6 +308,10 @@ export default function IdentificadoresPage() {
           <TabsTrigger value="blacklist" className="gap-2">
             <ShieldBan className="h-4 w-4" />
             Blacklist
+          </TabsTrigger>
+          <TabsTrigger value="sensores" className="gap-2">
+            <Tag className="h-4 w-4" />
+            Sensores
           </TabsTrigger>
         </TabsList>
 
@@ -683,6 +688,13 @@ export default function IdentificadoresPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* ============================================================ */}
+        {/* TAB: Sensores (Identfid por cara) */}
+        {/* ============================================================ */}
+        <TabsContent value="sensores">
+          <SensorsTab />
         </TabsContent>
       </Tabs>
     </div>
