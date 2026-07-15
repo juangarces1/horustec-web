@@ -318,3 +318,32 @@ export interface IdentifierRecordDto {
   hour: number;
   minute: number;
 }
+
+// ── Pumps (surtidores / caras) ──────────────────────────────────
+
+export interface PumpNozzleDto {
+  id: string;
+  code: string;
+  nozzleNumber: number;
+  productId: string;
+  productName: string | null;
+  tankId: string;
+  isActive: boolean;
+}
+
+export interface PumpDto {
+  id: string;
+  name: string;
+  pumpNumber: number;
+  concentratorId: string;
+  isActive: boolean;
+  requiresIdentifier: boolean;
+  nozzles: PumpNozzleDto[];
+}
+
+export interface ReapplyIdentifierResult {
+  pumpNumber: number;
+  enabled: boolean;
+  success: boolean;
+  error: string | null;
+}
