@@ -347,3 +347,10 @@ export interface ReapplyIdentifierResult {
   success: boolean;
   error: string | null;
 }
+
+// ── Clock (reloj del concentrador) ──────────────────────────────
+
+export interface ClockDto {
+  rawString: string;
+  parsed: string | null; // ISO datetime del concentrador, null si no se pudo parsear
+}

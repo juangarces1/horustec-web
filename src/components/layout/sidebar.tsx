@@ -26,6 +26,7 @@ import {
   CreditCard,
   PanelLeftClose,
   PanelLeftOpen,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -57,6 +58,7 @@ const navGroups: NavGroup[] = [
       { label: 'Preset', href: '/preset', icon: Zap },
       { label: 'Dispensadores', href: '/dispensadores', icon: Fuel },
       { label: 'Monitor', href: '/monitor-simple', icon: Monitor },
+      { label: 'Control', href: '/control', icon: SlidersHorizontal },
     ],
   },
   {
@@ -78,7 +80,7 @@ const navGroups: NavGroup[] = [
   {
     title: 'Sistema',
     items: [
-      { label: 'Configuracion', href: '/configuracion', icon: Settings, disabled: true },
+      { label: 'Configuracion', href: '/configuracion', icon: Settings },
     ],
   },
 ];
