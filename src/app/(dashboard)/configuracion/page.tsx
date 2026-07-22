@@ -4,8 +4,10 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { clockApi } from '@/lib/api/clock';
+import { settingsApi } from '@/lib/api/settings';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
   AlertDialog,
@@ -19,7 +21,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
-import { Clock, Loader2, RefreshCw, Settings, ShieldAlert } from 'lucide-react';
+import { Clock, Loader2, RefreshCw, Settings, ShieldAlert, Timer } from 'lucide-react';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   const data = (error as { response?: { data?: unknown } })?.response?.data;
@@ -233,6 +235,106 @@ function ClockCard() {
 }
 
 // ---------------------------------------------------------------------------
+// Preset
+// ---------------------------------------------------------------------------
+
+function PresetCard() {
+  const queryClient = useQueryClient();
+
+  const { data: settings, error, isLoading } = useQuery({
+    queryKey: ['settings'],
+    queryFn: settingsApi.get,
+    retry: false,
+  });
+
+  // El input arranca en el valor guardado; una vez que el usuario escribe,
+  // su edición manda. Derivado en vez de sincronizado con un efecto.
+  const [edited, setEdited] = useState<string | null>(null);
+  const timeout = edited ?? (settings ? String(settings.presetTimeoutSeconds) : '');
+
+  const saveMutation = useMutation({
+    mutationFn: (seconds: number) => settingsApi.update({ presetTimeoutSeconds: seconds }),
+    onSuccess: () => {
+      toast.success('Configuración de preset guardada');
+      setEdited(null); // vuelve a seguir el valor del servidor
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+    },
+    onError: (err) => {
+      toast.error(getErrorMessage(err, 'No se pudo guardar la configuración'));
+    },
+  });
+
+  const parsed = parseInt(timeout, 10);
+  const isValid = !isNaN(parsed) && parsed >= 0 && parsed <= 99;
+  const isDirty = settings != null && parsed !== settings.presetTimeoutSeconds;
+
+  if (error && isForbidden(error)) {
+    return (
+      <Card className="border-amber-200 bg-amber-50/50">
+        <CardContent className="flex items-center gap-3 py-6 text-amber-700">
+          <ShieldAlert className="h-5 w-5 flex-shrink-0" />
+          <p className="text-sm">La configuración de preset no está disponible para tu usuario.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="border-slate-200 bg-white shadow-sm">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Timer className="h-4 w-4 text-slate-500" />
+          Preset
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading ? (
+          <div className="flex items-center gap-2 py-4 text-slate-500">
+            <Loader2 className="h-4 w-4 animate-spin" /> Cargando configuración...
+          </div>
+        ) : error ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+            {getErrorMessage(error, 'No se pudo leer la configuración')}
+          </div>
+        ) : (
+          <>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-slate-600">
+                Tiempo para retirar la manguera{' '}
+                <span className="font-normal text-slate-400">(0–99 seg)</span>
+              </label>
+              <Input
+                type="number"
+                min="0"
+                max="99"
+                value={timeout}
+                onChange={(e) => setEdited(e.target.value)}
+                className="max-w-[140px] bg-white"
+              />
+              <p className="text-xs text-slate-500">
+                Cuánto espera la bomba a que levanten la manguera antes de volver a
+                bloquearse. Valores bajos dejan al pistero sin margen.
+              </p>
+            </div>
+
+            <div className="flex justify-end border-t border-slate-100 pt-4">
+              <Button
+                onClick={() => saveMutation.mutate(parsed)}
+                disabled={!isValid || !isDirty || saveMutation.isPending}
+                className="gap-2"
+              >
+                {saveMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                Guardar
+              </Button>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
@@ -252,6 +354,7 @@ export default function ConfiguracionPage() {
 
         <div className="space-y-6">
           <ClockCard />
+          <PresetCard />
         </div>
       </div>
     </div>
