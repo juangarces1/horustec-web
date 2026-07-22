@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { monitoringApi } from '@/lib/api/monitoring';
 import { attendantsApi } from '@/lib/api/attendants';
 import { pumpApi } from '@/lib/api/pump';
+import { settingsApi } from '@/lib/api/settings';
 import { DispenserCard } from '@/components/monitor/dispenser-card';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -64,6 +65,18 @@ const LITER_CHIPS = [10, 20, 30, 40, 50, 60, 100, 200, 300, 400, 500];
 
 /** Status priority for resolving dispenser representative status */
 const STATUS_PRIORITY = [3, 4, 5, 7, 2, 1, 8, 6, 0];
+
+/**
+ * Tipo de preset del comando DT214 34 (campo p). Además del tipo, decide el
+ * alcance: con CASH_WHOLE_FACE el concentrador libera las 3 mangueras de la
+ * cara; los otros dos liberan solo la manguera pedida.
+ * CASH_SINGLE_NOZZLE ('D') se agregó en la revisión 14 del DT214.
+ */
+const PRESET_TYPE = {
+  CASH_WHOLE_FACE: 0,
+  VOLUME: 1,
+  CASH_SINGLE_NOZZLE: 2,
+} as const;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -458,13 +471,21 @@ function Step3ConfigurePreset({
   const [selectedAttendantId, setSelectedAttendantId] = useState<string>('');
   const [identifierType, setIdentifierType] = useState<string>('0');
   const [priceLevel, setPriceLevel] = useState<string>('0');
-  const [timeoutSeconds, setTimeoutSeconds] = useState<string>('30');
+  // Arranca en el valor de Configuración; si el operador lo edita, su valor manda.
+  const [editedTimeout, setEditedTimeout] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { data: attendants, isLoading: loadingAttendants } = useQuery({
     queryKey: ['attendants-active'],
     queryFn: () => attendantsApi.getAll(true),
   });
+
+  const { data: settings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: settingsApi.get,
+  });
+
+  const timeoutSeconds = editedTimeout ?? (settings ? String(settings.presetTimeoutSeconds) : '');
 
   // Only attendants with a valid tagId can be selected
   const eligibleAttendants = attendants?.filter((a) => a.tagId && a.tagId.length === 16) ?? [];
@@ -489,20 +510,21 @@ function Step3ConfigurePreset({
     setSelectedLiters(null);
   };
 
-  // Mapping: presetType 0=Monto, 1=Volumen. Full tank = presetValue 0.
+  // Todos los modos usan un tipo que libera solo la manguera pedida.
+  // Tanque lleno = monto sin límite (presetValue 0).
   const getEffectivePreset = (): { presetValue: number; presetType: number } | null => {
     if (activeTab === 'amount') {
       const value = selectedAmount ?? (customAmount ? parseFloat(customAmount) : null);
       if (!value || value <= 0) return null;
-      return { presetValue: value, presetType: 0 };
+      return { presetValue: value, presetType: PRESET_TYPE.CASH_SINGLE_NOZZLE };
     }
     if (activeTab === 'liters') {
       const value = selectedLiters ?? (customLiters ? parseFloat(customLiters) : null);
       if (!value || value <= 0) return null;
-      return { presetValue: value, presetType: 1 };
+      return { presetValue: value, presetType: PRESET_TYPE.VOLUME };
     }
     if (activeTab === 'full') {
-      return { presetValue: 0, presetType: 0 };
+      return { presetValue: 0, presetType: PRESET_TYPE.CASH_SINGLE_NOZZLE };
     }
     return null;
   };
@@ -522,7 +544,10 @@ function Step3ConfigurePreset({
         identifierType: parseInt(identifierType),
         authorize: true,
         presetValue: effectivePreset.presetValue,
-        timeoutSeconds: Math.min(99, Math.max(0, parseInt(timeoutSeconds) || 30)),
+        timeoutSeconds: Math.min(
+          99,
+          Math.max(0, parseInt(timeoutSeconds) || settings?.presetTimeoutSeconds || 99)
+        ),
         presetType: effectivePreset.presetType,
         priceLevel: parseInt(priceLevel),
       });
@@ -644,7 +669,7 @@ function Step3ConfigurePreset({
               min="0"
               max="99"
               value={timeoutSeconds}
-              onChange={(e) => setTimeoutSeconds(e.target.value)}
+              onChange={(e) => setEditedTimeout(e.target.value)}
               className="bg-white"
             />
           </div>

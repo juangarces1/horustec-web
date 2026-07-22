@@ -11,7 +11,11 @@ export interface PresetWithTagRequest {
   authorize: boolean;
   presetValue: number;     // Amount in colones (type 0) or liters (type 1). 0 = full tank.
   timeoutSeconds: number;  // 0-99
-  presetType: number;      // 0=Monto ($), 1=Volumen (litros)
+  // Tipo de preset (DT214 cmd 34, campo p). Define tipo Y alcance:
+  //   0 = Monto '$' → libera toda la cara del surtidor
+  //   1 = Volumen 'V' → libera solo esta manguera
+  //   2 = Monto 'D' → libera solo esta manguera (DT214 rev 14)
+  presetType: number;
   priceLevel: number;      // 0=A la vista, 1=Crédito, 2=Débito
 }
 
