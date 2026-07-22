@@ -66,16 +66,10 @@ const LITER_CHIPS = [10, 20, 30, 40, 50, 60, 100, 200, 300, 400, 500];
 /** Status priority for resolving dispenser representative status */
 const STATUS_PRIORITY = [3, 4, 5, 7, 2, 1, 8, 6, 0];
 
-/**
- * Tipo de preset del comando DT214 34 (campo p). Además del tipo, decide el
- * alcance: con CASH_WHOLE_FACE el concentrador libera las 3 mangueras de la
- * cara; los otros dos liberan solo la manguera pedida.
- * CASH_SINGLE_NOZZLE ('D') se agregó en la revisión 14 del DT214.
- */
+/** Qué se predetermina. El backend decide el alcance (siempre una manguera). */
 const PRESET_TYPE = {
-  CASH_WHOLE_FACE: 0,
+  AMOUNT: 0,
   VOLUME: 1,
-  CASH_SINGLE_NOZZLE: 2,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -516,7 +510,7 @@ function Step3ConfigurePreset({
     if (activeTab === 'amount') {
       const value = selectedAmount ?? (customAmount ? parseFloat(customAmount) : null);
       if (!value || value <= 0) return null;
-      return { presetValue: value, presetType: PRESET_TYPE.CASH_SINGLE_NOZZLE };
+      return { presetValue: value, presetType: PRESET_TYPE.AMOUNT };
     }
     if (activeTab === 'liters') {
       const value = selectedLiters ?? (customLiters ? parseFloat(customLiters) : null);
@@ -524,7 +518,7 @@ function Step3ConfigurePreset({
       return { presetValue: value, presetType: PRESET_TYPE.VOLUME };
     }
     if (activeTab === 'full') {
-      return { presetValue: 0, presetType: PRESET_TYPE.CASH_SINGLE_NOZZLE };
+      return { presetValue: 0, presetType: PRESET_TYPE.AMOUNT };
     }
     return null;
   };
